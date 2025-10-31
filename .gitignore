@@ -1,3 +1,6 @@
+# ETAS raw data file
+*.mf4
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]
