@@ -1,0 +1,4 @@
+fastpfor only implemented for 32bit, 
+to include 64bit, consider:
+    https://github.com/powturbo/TurboPFor-Integer-Compression
+    must make python bindings
