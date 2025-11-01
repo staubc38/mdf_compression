@@ -2,3 +2,20 @@ fastpfor only implemented for 32bit,
 to include 64bit, consider:
     https://github.com/powturbo/TurboPFor-Integer-Compression
     must make python bindings
+
+
+Presently, applying these transformations:
+- raw int values are zigzagged, which doesnt add a lot of decompression time to un-zigzag, 
+    and retains negative values to become small positive values. 
+    so this should just always be done if there are any negative values
+- time is converted into ns and differentiated twice!
+    to keep the values small, 
+    so they compress very well with bitpacking, 
+    and to not do this, would add a lot of file size, it should be kept
+    but, on decompression, double-cumsum adds a lot of time :(
+        perhaps this would not be true if we create only one unified timeaxis?
+    anyway, maybe this could be optimized somehow... if unified timeaxis has drawbacks
+        does a prefix-sum with gaps (eg prefix-4) save time?
+        highly likely a prefix-4 differential would give the same result as prefix-1
+            on the second differential
+        

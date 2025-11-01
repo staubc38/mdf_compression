@@ -4,16 +4,20 @@ import os
 import asammdf, pandas as pd, numpy as np
 
 
-sample_mf4_fpa = os.path.join(
-    Path(__file__).parent,
-    'sample_data.mf4'
-)
 
 def generate_sample_data_ints(
+    *a,
     time_s=3600, 
     sample_intervals_ms = (1000, 500, 250, 100),
     channels_per_interval=200,
+    compression=False,
+    fname='sample_data.mf4',
 ):
+    sample_mf4_fpa = os.path.join(
+        Path(__file__).parent,
+        fname
+    )
+    
     # we can generate some sample data, 
     # lets do 1000 columns, all i32,
     #   we can mix in some floats later?
@@ -35,7 +39,7 @@ def generate_sample_data_ints(
     with asammdf.MDF(version='4.10') as mfil:
         for df in groups:
             mfil.append(df)
-        mfil.save(sample_mf4_fpa, overwrite=True)
+        mfil.save(sample_mf4_fpa, overwrite=True, compression=compression)
 
 # TODO when ready, mix in some floats, 
 #   some 2d data?

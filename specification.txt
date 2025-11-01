@@ -1,0 +1,22 @@
+Notes on the specification of the compressed MDF file "mdfc".
+
+Find more information about the specification of MDF here:
+https://www.asam.net/standards/detail/mdf/wiki/
+
+Python library asammdf is available to read data & metadata from MDF files into python memory (numpy arrays). 
+Find more information about that here:
+https://asammdf.readthedocs.io/en/latest/
+
+The technical specification of an MDF file includes data & metadata:
+https://www.asam.net/standards/detail/mdf/wiki/#TechnicalContent
+
+Detail & notes about compression:
+- "Data" blocks may be sorted or unsorted, although I think there is no need to support "unsorted" file?
+- "Data" is oriented in record format with some time, 64bit float? Although I think it should be acceptable to convert it into ns
+    "time" is always ascending and guarenteed to exist, and is a ground truth for all groups/channels/etc...
+    therefore, a single time array could be created, and the associated index could be included
+        for each 
+- Data blocks may be directly float, or may be some non-float with a "conversion rule" described in the channel metadata somewhere..
+    Therefore only the raw values should be compressed
+    Perhaps float could be transformed into significand & exponent?
+
