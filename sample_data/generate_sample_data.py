@@ -12,6 +12,8 @@ def generate_sample_data_ints(
     channels_per_interval=200,
     compression=False,
     fname='sample_data.mf4',
+    lo=-1024,
+    hi=1024,
 ):
     sample_mf4_fpa = os.path.join(
         Path(__file__).parent,
@@ -31,7 +33,7 @@ def generate_sample_data_ints(
         r = int(time_s*(1000/sample_interval))
         c = channels_per_interval
         df = pd.DataFrame(
-            data=np.random.randint(low=-1024, high=1024, size=(r, c)),
+            data=np.random.randint(low=lo, high=hi, size=(r, c)),
             index=np.array(range(r))*(time_s/r),
             columns=[f'{sample_interval}ms_{n}' for n in range(c)]
         )

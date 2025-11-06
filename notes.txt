@@ -19,3 +19,18 @@ Presently, applying these transformations:
         highly likely a prefix-4 differential would give the same result as prefix-1
             on the second differential
         
+
+- differentiating (& zigzagging) **random** values doesnt seem to help compression
+    although i think it should be expected that with more "steady" values, it should help
+    so we should have an option to check the differential, and the second differential, 
+        and maybe compute some sum of how many small values 
+        to judge if a differential could add extra bitpacking compression
+
+- need to check if times become out of range of uint32, 
+    which could occur in differentiating on the scale of ns
+    but might just not occur if the unit is us?
+    needs thought
+    but we can choose single-differential and microseconds, 
+        and maybe we could determine if another tx could be applied?
+            to further reduce size
+        single-diff us seems OK
