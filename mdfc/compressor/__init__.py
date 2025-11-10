@@ -8,10 +8,10 @@ from io import BytesIO, SEEK_SET, SEEK_END
 import json
 import os
 from collections import defaultdict
+import shutil  # copyfileobj function
 
 # for python demo, required asammdf py library
 from asammdf import MDF
-
 
 
 # from . import compress_array
@@ -25,6 +25,8 @@ from ..transform import compress_time
 from ..utils import (
     unify_timestamps,
 )
+
+from ..db import get_duckdb_buffer
 
 
 
@@ -42,7 +44,7 @@ class MDFCompressor(object):
     
     '''
     def __init__(self, 
-        name: Optional[Union[str, Path, BytesIO]] = None, 
+        name: Optional[Union[str, Path]] = None, 
         overwrite: bool = False
     ):
         '''
@@ -52,6 +54,10 @@ class MDFCompressor(object):
             and open the file for writing,
         and prepare to compress data from a MDF file
 
+        in this context, we are using duckdb to hold the data, 
+            so a tempfile will be created to write the duckdb database file
+            and then copied into the mdfc on calling finish() function
+
         intended for use as a context manager!
         '''
         self.overwrite = overwrite
@@ -59,51 +65,52 @@ class MDFCompressor(object):
         if isinstance(name, BytesIO):
             self.name = name
             self.open_stream_func = lambda: self.name
+            self.duckdb_buffer = get_duckdb_buffer(overwrite=self.overwrite, read_only=False)
         elif name:
             # string or Path
             self.name = Path(name)
             if self.name.exists() and (not self.overwrite):
                 raise FileExistsError(f"File {name} already exists! Pass overwrite=True to overwrite it")
             self.open_stream_func = lambda: open(self.name, 'wb')
+            self.duckdb_buffer = get_duckdb_buffer(overwrite=self.overwrite, read_only=False)
         else:
             self.name = BytesIO()
             self.open_stream_func = lambda: self.name
+            self.duckdb_buffer = get_duckdb_buffer(overwrite=self.overwrite, read_only=False)
 
-        # we do not need to accumulate references to the input data,
-        # but we do need to save some things about each "channel":
-        #   start position (bytes) of the compressed data block in the file
-        #   size (bytes) of compressed data block
-        #   shape of the decompressed block
-        #   list of the transformations applied, in order, before compression
-        #       that should be reversible by working backwards
+        # we do not need to do any transformations before adding to ddb,
+        # but we do need to save the MDF metadata, 
+        # and some other metadata, probably, about reading from duckdb
+        #   ie maybe the channel grouping can be saved
+        #   some info about the schema... 
+        #   lets figure it out!
 
-        # metadata should look like:
+        # so i am not sure what metadata is needed...
+        # maybe we can put the table name, column name, per channel?
         #   {<channel_name>: {
-        #       'start': u64, 
-        #       'csize': u64, 
-        #       'dshape': u64, 
-        #       'txs': [... enums of transformations applied, in order, during compression...],
+        #       'tablename': str, 
+        #       'columnname': str, 
         #   }}
         # and can be just a json dump at the footer for now
-        self.metadata = defaultdict(lambda: {'start': -1, 'csize': -1, 'dshape': -1, 'txs': list()})
+        self.metadata = defaultdict(lambda: {'tablename': '', 'columnname': '',})
         self.mdf_metadata = {}  # other required to reconstruct MDF file, TODO issue #2
 
         # key feature of mdfc -> single unified time block can be constructed
         #   and a pointer to row-position in each other data block
         #   can be included in the prefix
-        #   i guess that could be added to metadata,
-        #       but i dont want to (yet), 
-        #       since it must exist everywhere else
         # require a reference to the uncompresed time array, 
         #   since we will save the time array idx's with each data block
         self.time_axis = None  # the uncompressed, untransformed, unified timestamps
-        self.time_metadata = None  # (start, csize, dshape, [...])
+        self.time_metadata = None  # (tablename, columnname)
         
-        self.curr_offset = 0  # len(self.magic_header)
+        # we might need this to save the duckdb file bytes at the right spot?
+        self.curr_offset = 0
 
         # only one "unified timeaxis" is allowed
         #   and it is written as soon as its set
         self._has_set_time = False
+        self._has_written_metadata = False
+        self._has_copied_duckdb = False
     
     # context manager can open/close the stream
     def __enter__(self):
@@ -118,15 +125,31 @@ class MDFCompressor(object):
         #   then we need a placeholder of the location & size of the decompression metadata
         return self
     def __exit__(self, exc_type, exc_value, traceback):
+        self.finish()
         if self.fstream:
             self.fstream.close()
+        # and close the duckdb, it is OK to call this multiple times
+        if self.duckdb_buffer.conn:
+            self.duckdb_buffer.conn.close()
+        # and delete the temp duckdb file
+        try:
+            self.duckdb_buffer.file.unlink()
+        except FileNotFoundError: pass
+        except: raise  # TODO better fallback strategy?
 
-    # strategy: write to the file on compression, 
-    #   leave a placeholder for the decopmression metadata position & length,
-    #   accumulate metadata internally
-    #   update placeholders for position & length,
+    # strategy: write to the duckdb file per signal,
+    #   no transformations are applied, but some other non-db metadata required
+    #   leave a placeholder for that metadata position & length,
+    #   accumulate metadata internally as needed
     #   write metadata as json
     #   the rest is MDF metadata required for reconstruction (json? compressed? meh)
+    #   then assemble so we have 
+    #       MAGIC_HEADER
+    #       METADATA_POS
+    #       METADATA_LEN
+    #       ... duckdb file bytes ... 
+    #       METADATA
+    #       other MDF file metadata
     
 
     def _write_bytes(self, bts: bytes) -> bool:
@@ -151,6 +174,7 @@ class MDFCompressor(object):
         md_bytes = json.dumps(out_md).encode('utf-8')
         md_bytes_size = len(md_bytes)
         assert len(md_bytes) < MAX_METADATA_BYTES, "too much decompression metadata accumulated :'( sorry!"
+
         # seek after MAGIC_HEADER to update metadata position and size appropriately
         self.fstream.seek(len(MAGIC_HEADER), SEEK_SET)
         # print(f'curr offset is {self.curr_offset}')
@@ -165,7 +189,17 @@ class MDFCompressor(object):
         return True
         
     def finish(self):
-        self.write_metadata()
+        # in this context, we are writing to a duckdb temp file
+        # so we need to close that, then copy the file bytes into this file
+        # TODO i think this could be moved into mdfc.db function
+        #   although perhaps thats a bit convoluted...
+        if not self._has_copied_duckdb:
+            self.duckdb_buffer.copy_into_mdfc_file(self)
+            self._has_copied_duckdb = True
+        # then we can write metadata afterwords
+        if not self._has_written_metadata:
+            self.write_metadata()
+            self._has_written_metadata = True
         # TODO, MDF metadata?
         return True
 
@@ -181,12 +215,11 @@ class MDFCompressor(object):
         set the timestamps block, of which only one should exist, 
             which should be a 1d, uint array, ascending in value
             this should be the uncompressed block
-        
-        the array will be differentiated twice, 
-            converted to uint32, 
-            compressed using fastpfor
-            written to the file (TODO)
-            set the flag that this has been done
+
+        using duckdb "backend", we will write this to a dedicated table
+            that is just two columns, 
+            ID & float value
+                unless we want to compress more?
         '''
         if self._has_set_time:
             raise MDFCompressorException(
@@ -197,24 +230,22 @@ class MDFCompressor(object):
         #   bit of an inefficiency to MDF.select(...) twice... but its OK for now
         self.time_axis = unify_timestamps(mdf_file)  # likely a np float64
 
-        # decompressed row size
-        #   it is recorded if 2x of that must be allocated as uint32, 
-        #   as the last transformation
-        #   so we can record the target rowsize, and know if we need to *2 that 
-        #       by considering the last entry, which should be a boolean, in txs
-        decompressed_shape = self.time_axis.shape
+        # # TESTING using bitpacking/pfor in duckdb
+        # # looks like this doesnt save too much size :'(
+        # import numpy as np
+        # # lets test as if we apply scaleup, dtype transform, and differential
+        # temp_time_axis = (self.time_axis * 100).astype(np.uint64)
+        # temp_time_axis = np.diff(temp_time_axis, prepend=0)
+        # self.duckdb_buffer.add_time(temp_time_axis)
+        # # end TESTING
 
-        # compress (which does transformations), 
-        #   add transformations to time_metadata, 
-        #   and write the time array
-        compressed_time, txs = compress_time(self.time_axis)
-        compressed_size_bytes = len(compressed_time)
-        # save time_metadata
-        self.time_metadata = (self.curr_offset, compressed_size_bytes, decompressed_shape, txs)
-        # write to file & increment curr_offset
-        self._write_bytes(compressed_time)
+        # just add it to duckdb in this context
+        self.duckdb_buffer.add_time(self.time_axis)
+        # save time_metadata, which is just tablename/columnname
+        self.time_metadata = ('mdf_timestamps', 'mdf_timestamp')
         # save flag
         self._has_set_time = True
+        return True
         
 
 

@@ -23,6 +23,8 @@ from .. import (
 )
 from ..transform import decompress_time
 
+from ..db import get_duckdb_buffer
+
 # reader exceptions
 class MDFDecompressorException(ValueError):
     pass
@@ -35,9 +37,9 @@ class MDFDecompressor(object):
         and compressed blocks representing the data & time values
     
     '''
-    def __init__(self, 
-        name: Optional[Union[str, Path, BytesIO]], 
-        overwrite: bool = False
+    def __init__(self,
+        name: Optional[Union[str, Path, BytesIO]],
+        overwrite: bool = False,
     ):
         '''
         create a MDFCompressor object, 
@@ -45,33 +47,38 @@ class MDFDecompressor(object):
             and open the file for reading,
         and prepare to decompress compress data from it
 
+        in this context, we are using duckdb to hold the data,
+            so a tempfile will be created to hold the duckdb database file
+            to be read from by duckdb engine
+            on exit of the context manager, this tempfile can be deleted
+
         intended for use as a context manager!
         '''
         self.fstream = None  # placeholder
         if isinstance(name, BytesIO):
             self.name = name
             self.open_stream_func = lambda: self.name
+            self.duckdb_buffer = get_duckdb_buffer(read_only=True, overwrite=False)
         else:
             # string or Path
             self.name = Path(name)
             if not self.name.exists():
                 raise FileExistsError(f"File {name} does not exist! (?)")
             self.open_stream_func = lambda: open(self.name, 'rb')
+            self.duckdb_buffer = get_duckdb_buffer(read_only=True, overwrite=False)
 
-        # metadata should look like:
-        #   {<channel_name>: {
-        #       'start': u64, 
-        #       'csize': u64, 
-        #       'dshape': u64, 
-        #       'txs': [... enums of transformations applied, in order, during compression...],
-        #   }}
+        # metadata shape, for duckdb-backend, found in compressor defn
         # and can be just a json dump at the footer for now
-        self.metadata = defaultdict(lambda: {'start': -1, 'csize': -1, 'dshape': -1, 'txs': list()})
+        self.metadata = defaultdict(lambda: {'tablename': '', 'columnname': '',})
         self.mdf_metadata = {}  # other required to reconstruct MDF file, TODO issue #2
 
         # we need to save the decompressed time axis to look up the index values with each MDF signal
         self.time_axis = None  # the uncompressed, untransformed, unified timestamps
         self.time_metadata = None  # (start, csize, dshape, [...])
+
+        # helpers to tell where & extent of the duckdb file bytes
+        self.duckdb_pos = -1
+        self.duckdb_len = -1
         
     
     # context manager can open/close the stream
@@ -89,16 +96,36 @@ class MDFDecompressor(object):
         metadata_length = int.from_bytes(self._read_bytes(METADATA_LENGTH_SIZE))
         if metadata_length == 0:
             raise ValueError(f'Metadata length not properly written in file, got {metadata_length}')
+
+        # structure of the file is such that, the duckdb file 
+        #   starts after the 3rd byte,
+        #   and spans until metadata_pos
+        self.duckdb_pos = len(MAGIC_HEADER) + METADATA_POS_SIZE + METADATA_LENGTH_SIZE
+        self.duckdb_len = metadata_pos
+
+        # we might as well load the duckdb now?
+        #   --> this copies out the duckdb database file
+        self.duckdb_buffer.load_duckdb_from_mdfc(self)
         
         # read the metadata, it is a json dump of a list with two elements, 
         #   first element is time_metadata, 
         #   second element is metadata (signals metadata)
+        # i think, after unpacking the duckdb file, we are already at the right pos?
+        #   but we can seek again anyway...
         self.time_metadata, self.metadata = json.loads(self._read_bytes(metadata_length, metadata_pos))
         # TODO read the MDF metadata
         return self
     def __exit__(self, exc_type, exc_value, traceback):
         if self.fstream:
             self.fstream.close()
+        # and close the duckdb, it is OK to call this multiple times
+        if self.duckdb_buffer.conn:
+            self.duckdb_buffer.conn.close()
+        # and delete the temp duckdb file
+        try:
+            self.duckdb_buffer.file.unlink()
+        except FileNotFoundError: pass
+        except: raise  # TODO better fallback strategy?
 
     # strategy: write to the file on compression, 
     #   leave a placeholder for the decopmression metadata position & length,
@@ -119,21 +146,15 @@ class MDFDecompressor(object):
     def decompress_time(self) -> bool:
         '''
         TODO better docu...
+        TODO this may not be needed in duckdb context?
         
-        decompress & transform the unified timestamps
-        to arrive at the unified array originally from each MDF signal
+        load the unified time_axis from duckdb 
+            which is saved in its own dedicated table "times"
+        save it as self.time_axis
 
         no need to call this twice, but we dont need to disable that possibility...?
         '''
-        # time_metadata has (start_pos, byte_length, decompressed_shape)
-        # i guess we can just read the whole thing at first?
-        compressed = self._read_bytes(self.time_metadata[1], self.time_metadata[0])
-        num_elements_expected = self.time_metadata[2]
-        if isinstance(num_elements_expected, (list,set,tuple)):
-            # presently im saving the numpy shape of the list
-            num_elements_expected = num_elements_expected[0]
-        # the transformations are the fourth (& final) element of the time metadata
-        txs = self.time_metadata[3]
-        # decompress it!
-        self.time_axis = decompress_time(compressed, num_elements_expected, txs)
+        # names are saved in the time_metadata
+        tablename, columnname = self.time_metadata
+        self.time_axis = self.duckdb_buffer.load_time(tablename=tablename, columnname=columnname)
         return True
