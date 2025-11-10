@@ -3,6 +3,9 @@
 *.mdfc
 *.mf4c
 
+# duckdb temp files
+*.duckdb
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]
