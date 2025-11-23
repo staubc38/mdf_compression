@@ -56,5 +56,6 @@ TX_DECOMPRESS = {key: val[1] for key, val in TRANSFORMATIONS.items()}
 
 # make available
 from .time import (
-    compress_time, decompress_time
+    compress_time, decompress_time,
+    compress_samples_time, decompress_samples_time
 )

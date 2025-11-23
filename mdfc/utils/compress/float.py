@@ -6,7 +6,6 @@ using zfpy library,
 
 '''
 
-from . import generate_uint32_buffer
 
 import numpy as np
 from zfpy import compress_numpy

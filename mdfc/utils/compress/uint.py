@@ -6,7 +6,7 @@ so far just using pyfastpfor
 
 '''
 
-from . import generate_uint32_buffer
+
 
 import numpy as np
 from pyfastpfor import getCodec
@@ -35,6 +35,8 @@ def compress_u32(arr):
     # allegedly the compression doesnt always work :) so allocate some more
     #   not sure whats OK or NOK :'(
     # comp_buffer = np.zeros(shape=arr.shape[0]+100, dtype=np.uint32)
+    # TODO implement option to use existing buffer
+    from .. import generate_uint32_buffer
     comp_buffer = generate_uint32_buffer(arr.shape[0]+100)
     size_arr = int(len(arr))
     size_comp = int(len(comp_buffer))

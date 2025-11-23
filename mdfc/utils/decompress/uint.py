@@ -6,8 +6,6 @@ so far just using pyfastpfor
 
 '''
 
-from . import generate_uint32_buffer
-
 import numpy as np
 from pyfastpfor import getCodec
 codec_name_used = 'simdbinarypacking'  # will we need to use different ones?
@@ -29,6 +27,7 @@ def decompress_u32(comp_arr, num_elem_expected=None, buffer_array=None):
     '''
     if buffer_array is None:
         # buffer_array = np.zeros(shape=num_elem_expected, dtype=np.uint32)
+        from .. import generate_uint32_buffer
         buffer_array = generate_uint32_buffer(num_elem_expected)
     if num_elem_expected is None:
         num_elem_expected = len(buffer_array)

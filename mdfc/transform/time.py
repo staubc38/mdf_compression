@@ -36,6 +36,7 @@ from ..utils.compress import (
 from ..utils.decompress import (
     decompress_u32
 )
+from ..utils.asammdf_util import map_times_to_timeaxis  # under .asammdf_util
 
 MAX_U64_VALUE = np.iinfo(np.uint64).max
 MAX_U32_VALUE = np.iinfo(np.uint32).max
@@ -133,4 +134,43 @@ def decompress_time(compressed: Union[bytes, npt.NDArray[np.uint32]], num_elem_e
         tx_args = tx[1:]
         decompressed = TX_DECOMPRESS[tx_enum](decompressed, *tx_args)
     return decompressed
-    
+
+
+
+# i guess we can have a function for "compress samples time..."
+# seems a bit shitty
+def compress_samples_time(signal_timestamps, mdf_compressor):
+    ''' 
+    from mdf Signal.timestamps (the array), and the compressor object
+        which has the saved time_axis,
+    copmress & return the compressed size 
+    of the differentiated index positions of the samples' times
+    '''
+    # TODO decide if we write the steps of the time compression
+    #   i dont want to right now
+    timelocs = map_times_to_timeaxis(signal_timestamps, mdf_compressor.time_axis)
+    # single differentiate to arrive at incremental index pstn
+    timelocs = np.diff(timelocs, prepend=0).astype(np.uint32)
+    # compress
+    compressed_timelocs, was_split = compress_u32(timelocs)
+    # TODO was_split is not implemented yet!
+    return compressed_timelocs  # a u32 array of just the bytes
+
+def decompress_samples_time(compressed, num_elem_expected, mdf_decompressor):
+    '''
+    from mdf decompressor object,
+    which has the decompressed unified time axis
+        as time_axis,
+    decompress the bytes passed "compressed"
+        into a new array
+        which corresponds to the idx locs of time_axis,
+    return those times slice
+    '''
+    if isinstance(compressed, bytes):
+        compressed = np.frombuffer(dtype=np.uint32, buffer=compressed)
+    # checking should be done in decompress_u32 function
+    decompressed = decompress_u32(compressed, num_elem_expected=num_elem_expected)
+    # tx's are assumed for this
+    decompressed = np.cumsum(decompressed)
+    # fancy select indexing --> it is just a variable slice
+    return mdf_decompressor.time_axis[decompressed]

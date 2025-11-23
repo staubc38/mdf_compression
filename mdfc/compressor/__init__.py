@@ -11,6 +11,7 @@ from collections import defaultdict
 
 # for python demo, required asammdf py library
 from asammdf import MDF
+from asammdf.signal import Signal
 
 
 
@@ -21,7 +22,7 @@ from .. import (
     METADATA_LENGTH_SIZE,
     MAX_METADATA_BYTES,
 )
-from ..transform import compress_time
+from ..transform import compress_time, compress_samples_time
 from ..utils import (
     unify_timestamps,
 )
@@ -85,7 +86,7 @@ class MDFCompressor(object):
         #       'txs': [... enums of transformations applied, in order, during compression...],
         #   }}
         # and can be just a json dump at the footer for now
-        self.metadata = defaultdict(lambda: {'start': -1, 'csize': -1, 'dshape': -1, 'txs': list()})
+        self.metadata = defaultdict(lambda: {'start': -1, 'csize_t': -1, 'csize': -1, 'dshape': -1, 'txs': list()})
         self.mdf_metadata = {}  # other required to reconstruct MDF file, TODO issue #2
 
         # key feature of mdfc -> single unified time block can be constructed
@@ -217,82 +218,68 @@ class MDFCompressor(object):
         self._has_set_time = True
         
 
+    def compress_signals(self, mdf_file: MDF):
+        '''
+        for all channels in the mdf file,
+            apply appropriate compression for its dtype & shape,
+            write to the file,
+            add to metadata
+        '''
+        raise NotImplementedError("TODO")
 
 
 
+    # TODO
+    #   args dtypes
+    #   decide on complex shape approach...
+    #       probably just unravel
+    def _compress_signal(self, signal: Signal):
+        '''
+        compress a MDF.signal.Signal, object 
+        which contains the raw data values, 
+            of some shape m,n
+            as .samples
+        and the timestamp values,
+            of shape n,
+            as .timestamps
+        and some other metadata
+            TODO need to decide how to properly write that
+            into mdf_metadata
 
-    # # compress & write a data block, 
-    # #   and save the metadata information of it
-    # # TODO update this function below
-    # def append_values_block(self, data_block, name):
-    #     # TODO this needs to accept the time and data block
-    #     #   and combine them accordingly
-    #     #   for now it is done outside
+        signal should be derived from the MDF library,
+            perhaps using mdf_file.select(..., raw=True)
+            ie the raw samples values should be used
 
-    #     # TODO need to check dtype & apply transformations
-    #     #   and record them & order in metadata
-    #     decompressed_size_rows = len(data_block)  # TODO change strategy to save shape
-    #     compressed = compress_array(data_block)
-    #     compressed = bytes(compressed)
-    #     compressed_size_bytes = len(compressed)
-    #     # write
-    #     # TODO can we somehow not write if there is an error?
-    #     #   or, give up and just overwrite the metadata, idk...
-    #     self.fstream.write(compressed)
-    #     # save metadata
-    #     self.metadata[name] = (self.curr_offset, compressed_size_bytes, decompressed_size_rows)
-    #     # increment
-    #     self.curr_offset += compressed_size_bytes
-    
+        use the indexes of time values, 
+        according to the unified timestamps block
+            which is referenced as .time_axis,
+            and will always be sorted asc,
+        save idx loc & differentiate,
+            & write those first...
+            which i guess we need to write the compresed length
+            in metadata
 
+        for int arrays, we can just use u32 compression,
+            with a few tx's
 
+        for float arrays, we can just use zfp,
+            which doesnt need any tx?
+            but it can support some lossy tolerance amt
+        '''
+        # first we need to write the shape of the values block
+        #   it is already .select'ed 
+        #   so everything is loaded into memory already
+        #   TODO needs adjustment if we incrementally compress or not
+        shape = signal.samples.shape  # rows*... (right?)
+        self.metadata[signal.name]['dshape'] = shape
+        # print(f'{signal.name} with shape {shape}')
+        # copmress & write timestamps block
+        compressed_time = compress_samples_time(signal.timestamps, self)
+        # save this signal metadata,
+        self.metadata[signal.name]['start'] = self.curr_offset
+        self.metadata[signal.name]['csize_t'] = len(compressed_time)
+        self._write_bytes(compressed_time)
+        # print(f'finish compress time')
 
-    # old, can remove
-
-    # def append(self, data_block, decompressed_size_rows, name):
-    #     '''
-    #     add a block of data that will be serialized, with some name, 
-    #         TODO need to add more metadata for MDF
-        
-    #     data_block should be a 1d numpy array
-    #     '''
-    #     data_block = bytes(data_block)
-    #     compressed_size_bytes = len(data_block)
-    #     # TODO capture more metadata
-    #     self.metadata[name] = (self.curr_offset, compressed_size_bytes, decompressed_size_rows)
-    #     self.blocks.append(data_block)
-    #     self.curr_offset += compressed_size_bytes
-    
-    # def append_time_axis(self, timestamps_block):
-    #     '''
-    #     set the timestamps block, of which only one should exist, 
-    #         which should be a 1d, uint array, ascending in value
-    #         this should be the uncompressed block
-        
-    #     the array will be differentiated twice, 
-    #         converted to uint32, 
-    #         compressed using fastpfor
-    #         written to the file (TODO)
-    #         set the flag that this has been done
-    #     '''
-    #     if self._has_set_time:
-    #         raise MDFCWriterException("Only one time array may be set, only once. Please only call this function once :)")
-        
-    #     # save length
-    #     decompressed_size_rows = len(timestamps_block)
-    #     # reduce the magnitude of the value
-    #     #   block is guarenteed to be sorted ascending and (u)int32/64
-    #     #   frequently in ETAS data, the rate of recording (points/second) is constant
-    #     timestamps_block = np.diff(timestamps_block, prepend=0)
-    #     timestamps_block = timestamps_block.astype(np.uint32)
-    #     # compress
-    #     compressed = compress_array(timestamps_block)
-    #     compressed = bytes(compressed)
-    #     compressed_size_bytes = len(compressed)
-    #     # write it at the current position
-    #     self.fstream.write(compressed)
-    #     # save metadata
-    #     self.time_metadata = (self.curr_offset, compressed_size_bytes, decompressed_size_rows)
-    #     self.curr_offset += compressed_size_bytes
-    #     # set flag
-    #     self._has_set_time = True
+        # compress & write values block
+        # TODO...

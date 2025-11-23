@@ -21,7 +21,7 @@ from .. import (
     METADATA_LENGTH_SIZE,
     MAX_METADATA_BYTES,
 )
-from ..transform import decompress_time
+from ..transform import decompress_time, decompress_samples_time
 
 # reader exceptions
 class MDFDecompressorException(ValueError):
@@ -66,7 +66,7 @@ class MDFDecompressor(object):
         #       'txs': [... enums of transformations applied, in order, during compression...],
         #   }}
         # and can be just a json dump at the footer for now
-        self.metadata = defaultdict(lambda: {'start': -1, 'csize': -1, 'dshape': -1, 'txs': list()})
+        self.metadata = defaultdict(lambda: {'start': -1, 'csize_t': -1, 'csize': -1, 'dshape': -1, 'txs': list()})
         self.mdf_metadata = {}  # other required to reconstruct MDF file, TODO issue #2
 
         # we need to save the decompressed time axis to look up the index values with each MDF signal
@@ -137,3 +137,46 @@ class MDFDecompressor(object):
         # decompress it!
         self.time_axis = decompress_time(compressed, num_elements_expected, txs)
         return True
+
+    def decompress_signals(self):
+        '''
+        decompress all signals into MDF signal Signal objects
+        these should be the raw values,
+        with raw timestamps,
+        and the metadata required to reconstruct Signal object
+
+        based on the recordings in metadata...
+        '''
+        raise NotImplementedError("TODO!")
+
+    def _decompress_signal(self, signal_name):
+        '''
+        from the signal name,
+            which should just be a key in the metadata,
+
+        decompress the data,
+        decompress the values,
+        reconstruct the MDF signal Signal object
+
+        :)
+        '''
+        # signal shape in metadata
+        signal_shape = self.metadata[signal_name]['dshape']
+        # start/len in metadata
+        signal_start = self.metadata[signal_name]['start']
+        compressed_bytes_len = self.metadata[signal_name]['csize_t']
+        # read compressed time
+        compressed = self._read_bytes(compressed_bytes_len, signal_start)
+        # decompress the time, it is always u32
+        # TODO consider not to use decopmress_time wrapper function?
+        decompressed = decompress_samples_time(compressed, signal_shape[0], self)
+        times = decompressed.copy()
+        # transformations are hard coded for each signal time values
+        # TODO proper import location
+        
+
+        # decompress the values
+        # TODO...
+
+        # TODO construct Signal object
+        return {'timestamps': times}
