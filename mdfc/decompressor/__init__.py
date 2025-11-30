@@ -21,7 +21,7 @@ from .. import (
     METADATA_LENGTH_SIZE,
     MAX_METADATA_BYTES,
 )
-from ..transform import decompress_time, decompress_samples_time
+from ..transform import decompress_time, decompress_samples_time, decompress_samples
 
 # reader exceptions
 class MDFDecompressorException(ValueError):
@@ -165,18 +165,27 @@ class MDFDecompressor(object):
         # start/len in metadata
         signal_start = self.metadata[signal_name]['start']
         compressed_bytes_len = self.metadata[signal_name]['csize_t']
-        # read compressed time
+        # read compressed time, the pointer is offset
         compressed = self._read_bytes(compressed_bytes_len, signal_start)
         # decompress the time, it is always u32
         # TODO consider not to use decopmress_time wrapper function?
         decompressed = decompress_samples_time(compressed, signal_shape[0], self)
+        # i think a copy is required, 
+        #   since later we will use a single buffer for decomp & txing
         times = decompressed.copy()
-        # transformations are hard coded for each signal time values
-        # TODO proper import location
-        
 
         # decompress the values
-        # TODO...
+        compressed_bytes_len = self.metadata[signal_name]['csize']
+        # compressed signal bytes start after the time
+        compressed = self._read_bytes(compressed_bytes_len)
+        decompressed = decompress_samples(compressed, signal_shape, self.metadata[signal_name]['txs'])
+        # i think a copy is required, 
+        #   since later we will use a single buffer for decomp & txing
+        samples = decompressed.copy()
 
         # TODO construct Signal object
-        return {'timestamps': times}
+        return {
+            'timestamps': times,
+            'samples': samples,
+            # ...
+        }

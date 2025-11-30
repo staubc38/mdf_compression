@@ -24,6 +24,11 @@ def cumsum(arr, *a):
     # need to preserve a dtype here??
     return np.cumsum(arr)
 
+
+# TODO these dtypes should be rolled into one wrapper,
+# something like 32_to_64 & etc
+# which could also split from 64 into 2*32?
+#   as is, it is a bit not clear enough all the time
 def f64_to_u64(arr, *a):
     return arr.astype(np.uint64, copy=False)
 def u64_to_f64(arr, *a):
@@ -34,6 +39,22 @@ def u64_to_u32(arr, *a):
 def u32_to_u64(arr, *a):
     return arr.astype(np.uint64)
 
+def i64_to_i32(arr, *a):
+    return arr.astype(np.int32)
+def i32_to_i64(arr, *a):
+    return arr.astype(np.int64)
+
+def i32_to_u32(arr, *a):
+    return arr.astype(np.uint32)
+def u32_to_i32(arr, *a):
+    return arr.astype(np.int32)
+
+
+from ..utils import (
+    zigzag_encode,
+    zigzag_decode,
+)
+
 
 # TODO consider Enum?
 # ENUM: (for_compression, for_decompression)
@@ -41,7 +62,10 @@ TRANSFORMATIONS = {
     1: (scale_up, scale_down),
     2: (diff, cumsum),
     3: (f64_to_u64, u64_to_f64),
-    4: (u64_to_u32, u32_to_u64)
+    4: (u64_to_u32, u32_to_u64),
+    5: (zigzag_encode, zigzag_decode),
+    6: (i64_to_i32, i32_to_i64),
+    7: (i32_to_u32, u32_to_i32), 
 }
 
 # inverted
@@ -58,4 +82,7 @@ TX_DECOMPRESS = {key: val[1] for key, val in TRANSFORMATIONS.items()}
 from .time import (
     compress_time, decompress_time,
     compress_samples_time, decompress_samples_time
+)
+from .samples import (
+    compress_samples, decompress_samples
 )

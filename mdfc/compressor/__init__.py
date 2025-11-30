@@ -22,9 +22,9 @@ from .. import (
     METADATA_LENGTH_SIZE,
     MAX_METADATA_BYTES,
 )
-from ..transform import compress_time, compress_samples_time
+from ..transform import compress_time, compress_samples_time, compress_samples
 from ..utils import (
-    unify_timestamps,
+    unify_timestamps
 )
 
 
@@ -281,5 +281,13 @@ class MDFCompressor(object):
         self._write_bytes(compressed_time)
         # print(f'finish compress time')
 
-        # compress & write values block
-        # TODO...
+        # compress & write values
+        compressed, txs = compress_samples(signal)
+        compressed_size_bytes = len(compressed)
+        # write to file & increment curr_offset
+        self._write_bytes(compressed)
+        # save metadata
+        self.metadata[signal.name]['csize'] = compressed_size_bytes
+        self.metadata[signal.name]['txs'] = txs
+        
+        return True
