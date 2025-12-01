@@ -22,3 +22,8 @@ A python library "mdfc" is created, with some simple binary specification, to ap
     * https://userweb.cs.txstate.edu/~burtscher/research/FPC
     * https://github.com/spenczar/fpc  (for Go)
         
+
+In this simple example, 1d arrays of int & float data are trialed for compression.\
+Check out the notebook ./examples/compress.ipynb\
+
+... TODO, some more docu...
