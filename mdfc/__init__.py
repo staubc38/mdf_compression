@@ -22,10 +22,18 @@ MAX_METADATA_BYTES = (2**(8*8))-1
 
 # internal metadata fields for signals
 METADATA_DEFAULT_FIELDS = {
-    'start': -1,    # start position, bytes, in the file
+    'start': -1,    # start position, bytes, of the signal time & data blocks, in the file
     'csize_t': -1,  # size, bytes, of the compressed time indices for this signal
+                    #     time indices are written first, directly at "start"
     'csize': -1,    # size, bytes, of the compressed samples values for this signal
+                    #     copmressed samples are written 
+                    #     directly after the compressed time indices
     'dshape': -1,   # original shape of the decompressed samples
+                    #     during compression, higher dimensionality signals
+                    #     must be unraveled before compression
+                    #         as the first step
+                    #     therefore it would be raveled during reconstruction
+                    #         as the last step
     'dtype': '',    # original dtype of the decompressed samples
                     #     this should come from the ETAS metadata...
                     #     but presently it is judged by the numpy dtype :( 

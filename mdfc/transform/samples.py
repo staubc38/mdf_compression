@@ -209,7 +209,7 @@ def _compress_float(arr, *a, tolerance=-1, significands=-1, minimum_tolerance=No
             tolerance = max(minimum_tolerance, tolerance)
     
     # test
-    print(f'compress_f tolerance is {tolerance}')
+    # print(f'compress_f tolerance is {tolerance}')
     # pray!
     compressed, was_split = compress_f(arr, atol=tolerance)
     txs.append(was_split)

@@ -1,7 +1,6 @@
 '''
 class to support decompression from a mdfc file
 '''
-
 from typing import Optional, Union
 
 from pathlib import Path
@@ -12,9 +11,10 @@ from collections import defaultdict
 
 # for python demo, required asammdf py library
 from asammdf import MDF
+from asammdf.signal import Signal
 
 
-# from . import compress_array
+
 from .. import (
     MAGIC_HEADER,
     METADATA_POS_SIZE,
@@ -23,6 +23,11 @@ from .. import (
     METADATA_DEFAULT_FIELDS,
 )
 from ..transform import decompress_time, decompress_samples_time, decompress_samples
+
+
+
+
+
 
 # reader exceptions
 class MDFDecompressorException(ValueError):
@@ -38,10 +43,9 @@ class MDFDecompressor(object):
     '''
     def __init__(self, 
         name: Optional[Union[str, Path, BytesIO]], 
-        overwrite: bool = False
     ):
         '''
-        create a MDFCompressor object, 
+        create a MDFDecompressor object, 
         from a file path or BytesIO object, 
             and open the file for reading,
         and prepare to decompress compress data from it
@@ -59,14 +63,7 @@ class MDFDecompressor(object):
                 raise FileExistsError(f"File {name} does not exist! (?)")
             self.open_stream_func = lambda: open(self.name, 'rb')
 
-        # metadata should look like:
-        #   {<channel_name>: {
-        #       'start': u64, 
-        #       'csize': u64, 
-        #       'dshape': u64, 
-        #       'txs': [... enums of transformations applied, in order, during compression...],
-        #   }}
-        # and can be just a json dump at the footer for now
+        # placeholder for metadata read from the file footer
         self.metadata = defaultdict(lambda: METADATA_DEFAULT_FIELDS)
         self.mdf_metadata = {}  # other required to reconstruct MDF file, TODO issue #2
 
@@ -79,7 +76,7 @@ class MDFDecompressor(object):
     def __enter__(self):
         self.fstream = self.open_stream_func()
         # ensure we have the right header
-        hedaer_bytes = self._read_bytes(8)
+        hedaer_bytes = self._read_bytes(len(MAGIC_HEADER))
         if not (hedaer_bytes == MAGIC_HEADER):
             raise ValueError(f'Magic header not recognized at start of file, got {hedaer_bytes}!')
         # read position-start and size of metadata
@@ -93,20 +90,13 @@ class MDFDecompressor(object):
         
         # read the metadata, it is a json dump of a list with two elements, 
         #   first element is time_metadata, 
-        #   second element is metadata (signals metadata)
+        #   second element is signals metadata
         self.time_metadata, self.metadata = json.loads(self._read_bytes(metadata_length, metadata_pos))
         # TODO read the MDF metadata
         return self
     def __exit__(self, exc_type, exc_value, traceback):
         if self.fstream:
             self.fstream.close()
-
-    # strategy: write to the file on compression, 
-    #   leave a placeholder for the decopmression metadata position & length,
-    #   accumulate metadata internally
-    #   update placeholders for position & length,
-    #   write metadata as json
-    #   the rest is MDF metadata required for reconstruction (json? compressed? meh)
     
 
     def _read_bytes(self, n: int, from_pos: int = None, from_end: bool = False) -> bool:
@@ -119,15 +109,21 @@ class MDFDecompressor(object):
     #   from the MDF file object
     def decompress_time(self) -> bool:
         '''
-        TODO better docu...
+        A Compressed MDF file contains a single "unified time axis",
+            which is the union of all timestamps from each signal,
+            sorted ascending, as per the ASAM MDF standard.
         
-        decompress & transform the unified timestamps
-        to arrive at the unified array originally from each MDF signal
+        In this function, the compressed block from the "unified time axis" 
+            is read & decompressed,
+            and bound as 'time_axis' in the MDFDecompressor object,
+            as its indices are referenced in each compressed signal.
 
-        no need to call this twice, but we dont need to disable that possibility...?
+        Return True on success, else raise an exception...
         '''
-        # time_metadata has (start_pos, byte_length, decompressed_shape)
-        # i guess we can just read the whole thing at first?
+        # time_metadata is (start_pos, byte_length, decompressed_shape, txs)
+        #   and the shape will always be 1 dimensional
+
+        # i guess we can just read the whole thing...
         compressed = self._read_bytes(self.time_metadata[1], self.time_metadata[0])
         num_elements_expected = self.time_metadata[2]
         if isinstance(num_elements_expected, (list,set,tuple)):
@@ -141,12 +137,14 @@ class MDFDecompressor(object):
 
     def decompress_signals(self):
         '''
-        decompress all signals into MDF signal Signal objects
-        these should be the raw values,
-        with raw timestamps,
-        and the metadata required to reconstruct Signal object
-
-        based on the recordings in metadata...
+        Decompress all signals into MDF signal Signal objects
+            containing the raw values, timestamps, 
+            and other MDF metadata 
+                although TODO this metadata is not included yet :)
+        
+        Return a... 
+        - MDF file object?
+        - collection of MDF Signals?
         '''
         raise NotImplementedError("TODO!")
 
@@ -158,37 +156,38 @@ class MDFDecompressor(object):
         decompress the data,
         decompress the values,
         reconstruct the MDF signal Signal object
-
-        :)
+        
+        return a reconstructed MDF Signal object
         '''
-        # signal shape in metadata
+        # pick out required informations
         signal_shape = self.metadata[signal_name]['dshape']
-        # dtype of signal
         signal_dtype = self.metadata[signal_name]['dtype']
-        # start/len in metadata
         signal_start = self.metadata[signal_name]['start']
-        compressed_bytes_len = self.metadata[signal_name]['csize_t']
-        # read compressed time, the pointer is offset
-        compressed = self._read_bytes(compressed_bytes_len, signal_start)
-        # decompress the time, it is always u32
-        # TODO consider not to use decopmress_time wrapper function?
+        csize = self.metadata[signal_name]['csize_t']
+
+        # samples timestamps block is written first
+        compressed = self._read_bytes(csize, signal_start)
         decompressed = decompress_samples_time(compressed, signal_shape[0], self)
         # i think a copy is required, 
         #   since later we will use a single buffer for decomp & txing
-        times = decompressed.copy()
+        #   TODO can this go underneath the decompression function?
+        timestamps = decompressed.copy()
 
-        # decompress the values
-        compressed_bytes_len = self.metadata[signal_name]['csize']
-        # compressed signal bytes start after the time
-        compressed = self._read_bytes(compressed_bytes_len)
+        # samples block is written directly after timestamps
+        csize = self.metadata[signal_name]['csize']
+        compressed = self._read_bytes(csize)
         decompressed = decompress_samples(compressed, signal_dtype, signal_shape, self.metadata[signal_name]['txs'])
         # i think a copy is required, 
         #   since later we will use a single buffer for decomp & txing
+        #   TODO can this go underneath the decompression function?
         samples = decompressed.copy()
 
-        # TODO construct Signal object
-        return {
-            'timestamps': times,
-            'samples': samples,
-            # ...
-        }
+        # construct signal object
+        # TODO, needs to include more metadata informations...
+        sig = Signal(
+            samples=samples,
+            timestamps=timestamps,
+            name=signal_name,
+            # TODO more MDF metadata!
+        )
+        return sig

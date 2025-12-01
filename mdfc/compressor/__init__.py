@@ -14,8 +14,6 @@ from asammdf import MDF
 from asammdf.signal import Signal
 
 
-
-# from . import compress_array
 from .. import (
     MAGIC_HEADER,
     METADATA_POS_SIZE,
@@ -34,7 +32,6 @@ from ..utils import (
 class MDFCompressorException(ValueError):
     pass
 
-
 class MDFCompressor(object):
     '''
     a class to support writing binary "mdfc" file
@@ -45,20 +42,25 @@ class MDFCompressor(object):
     '''
     def __init__(self, 
         name: Optional[Union[str, Path, BytesIO]] = None, 
-        overwrite: bool = False
+        overwrite: bool = False,
     ):
         '''
         create a MDFCompressor object, 
         from a file path or BytesIO object, 
             or a BytesIO will be created internally,
             and open the file for writing,
-        and prepare to compress data from a MDF file
+        and prepare to compress data,
+            "signal-by-signal",
+            from an existing !terminated! MDF file
+                ie, one-shot compression only, 
+                not incremental compression
 
         intended for use as a context manager!
         '''
         self.overwrite = overwrite
-        self.fstream = None  # placeholder
+        self.fstream = None  # placeholder, is set in __enter__
         if isinstance(name, BytesIO):
+            # TODO do we need to ensure nothing has been written to it already?
             self.name = name
             self.open_stream_func = lambda: self.name
         elif name:
@@ -71,64 +73,51 @@ class MDFCompressor(object):
             self.name = BytesIO()
             self.open_stream_func = lambda: self.name
 
-        # we do not need to accumulate references to the input data,
-        # but we do need to save some things about each "channel":
-        #   start position (bytes) of the compressed data block in the file
-        #   size (bytes) of compressed data block
-        #   shape of the decompressed block
-        #   list of the transformations applied, in order, before compression
-        #       that should be reversible by working backwards
-
-        # metadata should look like:
-        #   {<channel_name>: {
-        #       'start': u64, 
-        #       'csize': u64, 
-        #       'dshape': u64, 
-        #       'txs': [... enums of transformations applied, in order, during compression...],
-        #   }}
-        # and can be just a json dump at the footer for now
+        # the approach is to accumulate compression metadata
+        #   and MDF metadata
+        # in this MDFCompressor object,
+        # compress & write the time/values from each signal
+        #   directly in the file
+        # then write the accumulated metadata as a footer
+        # and update bytesize of the metadata in a placehodler in the header
+        # for now the compression metadata is just a json dump :)
         self.metadata = defaultdict(lambda: METADATA_DEFAULT_FIELDS)
-        self.mdf_metadata = {}  # other required to reconstruct MDF file, TODO issue #2
+        # and the MDF metadata is not captured yet :) TODO issue #2
+        self.mdf_metadata = {}
 
         # key feature of mdfc -> single unified time block can be constructed
-        #   and a pointer to row-position in each other data block
-        #   can be included in the prefix
-        #   i guess that could be added to metadata,
-        #       but i dont want to (yet), 
-        #       since it must exist everywhere else
-        # require a reference to the uncompresed time array, 
-        #   since we will save the time array idx's with each data block
+        #   which will always be a 1dimensional array,
+        #   and highly likely can always be scaled up to whole numbers (integers),
+        #       even within int64 size limit
+        # therefore the "unified time axis" needs to be saved
+        # so it can be used to look up the values in each signal,
+        # but it must be generated once, before compressing each signal data
         self.time_axis = None  # the uncompressed, untransformed, unified timestamps
-        self.time_metadata = None  # (start, csize, dshape, [...])
-        
-        self.curr_offset = 0  # len(self.magic_header)
+        # so far we can assume it is compressed using int32 pfor compression
+        self.time_metadata = None  # (start, csize, dshape, [txs...])
 
-        # only one "unified timeaxis" is allowed
-        #   and it is written as soon as its set
+        # "unified timeaxis" should be accumualted once & once only
+        #   and should be compressed/written written ASAP
+        #   directly after the 3x 64bit placeholders
         self._has_set_time = False
+
+        # TODO do i need to have another pointer,
+        #   or can i get it from the fstream?
+        self.curr_offset = 0
     
     # context manager can open/close the stream
     def __enter__(self):
         self.fstream = self.open_stream_func()
-        # write header
         self._write_bytes(MAGIC_HEADER)
-        # write placeholder for location of decompression metadata start
+        # placeholder for location of compression metadata start
         self._write_bytes(int(0).to_bytes(METADATA_POS_SIZE))
-        # write placeholder for location of decompression metadata size
+        # placeholder for location of compression metadata size
         self._write_bytes(int(0).to_bytes(METADATA_LENGTH_SIZE))
-        # TODO if we decide to append MDF metadata after the decompression metadata, 
-        #   then we need a placeholder of the location & size of the decompression metadata
         return self
     def __exit__(self, exc_type, exc_value, traceback):
         if self.fstream:
             self.fstream.close()
-
-    # strategy: write to the file on compression, 
-    #   leave a placeholder for the decopmression metadata position & length,
-    #   accumulate metadata internally
-    #   update placeholders for position & length,
-    #   write metadata as json
-    #   the rest is MDF metadata required for reconstruction (json? compressed? meh)
+        # TODO need to do anything else here?
     
 
     def _write_bytes(self, bts: bytes) -> bool:
@@ -137,12 +126,20 @@ class MDFCompressor(object):
         self.curr_offset += len(bts)
         return True
 
-    def write_metadata(self):
+    def _write_metadata(self) -> bool:
         '''
-        write metadata, and the bytes size as 64bit integer
-        this should go in the footer, 
-        so the metadata size can be read as the last 8 bytes
-            and known to be directly before it
+        json-dump the internally accumulated compression metadata,
+        write the length of it in the header placeholder, 
+        and write the !current position of the file! (curr_offset)
+            as the metadata location, in that header placeholder
+
+        then dump the bytes at the end of the file
+
+        then dump the MDF metadata bytes after that
+            TODO this is not done yet :)
+
+        therefore this function should only be called once and once only, 
+        after all compression/serialization of MDF Signals has been done
         '''
         out_md = [
             self.time_metadata,
@@ -152,79 +149,92 @@ class MDFCompressor(object):
         # TODO better serialization of this...
         md_bytes = json.dumps(out_md).encode('utf-8')
         md_bytes_size = len(md_bytes)
+        # TODO could this be checked upfront somehow??
         assert len(md_bytes) < MAX_METADATA_BYTES, "too much decompression metadata accumulated :'( sorry!"
-        # seek after MAGIC_HEADER to update metadata position and size appropriately
+        # update placeholders for metadata position and size
         self.fstream.seek(len(MAGIC_HEADER), SEEK_SET)
-        # print(f'curr offset is {self.curr_offset}')
         self.fstream.write(int(self.curr_offset).to_bytes(METADATA_POS_SIZE))
-        # print(f'md bytes size is {md_bytes_size}')
         self.fstream.write(md_bytes_size.to_bytes(METADATA_LENGTH_SIZE))
-        # seek back to end!
+        # now we can dump the metadata at the end of the file
         self.fstream.seek(0, SEEK_END)
-        # now we can write metadata bytes
         self._write_bytes(md_bytes)
-        # TODO now we can append more MDF metadata for reconstruction as required
         return True
         
-    def finish(self):
-        self.write_metadata()
-        # TODO, MDF metadata?
+    def finish(self) -> bool:
+        ''' 
+        Call this function just before exiting the context manager,
+        to properly write the footer,
+        which includes metadata for decompression & reconstruction of MDF Signal objects
+        '''
+        self._write_metadata()
+        # TODO now we can append more MDF metadata for reconstruction as required
         return True
 
 
     # functions to compress, record, & serialize compressed data
     #   from the MDF file object
-    def unify_compress_time(self, 
+    def unify_compress_time(
+        self, 
         mdf_file: MDF
     ) -> bool:
         '''
-        TODO better docu...
+        A MDF file contains Signals which have numeric timestamps.
+        These timestamps, highly likely, have some overlap among other signals/groups. 
+        Further, the timestamps are always sorted ascending as per the MDF standard
 
-        set the timestamps block, of which only one should exist, 
-            which should be a 1d, uint array, ascending in value
-            this should be the uncompressed block
-        
-        the array will be differentiated twice, 
-            converted to uint32, 
-            compressed using fastpfor
-            written to the file (TODO)
-            set the flag that this has been done
+        In this function:
+        - unify all timestamps from the MDF file, 
+        - sort ascending (which is done in numpy union1d function),
+            and save the result in the MDFCompressor object here
+        - scale up to integer values
+            usually this results in seconds --> microseconds, 
+            ie order of 1,000,000
+        - differentiate & compress using pfor integer compression
+        - immediately write out the compressed result to the file
+
+        This should be done before compressing any MDF Signal,
+            as all timestamps should be gathered into one common axis,
+            so that the indices of those values can be associated
+            for each Signal
+        Therefore a flag is set after success of this function 
+            which will raise an exception if set & function called again
         '''
         if self._has_set_time:
             raise MDFCompressorException(
-                "Only one time array may be set, only once. "
+                "Only one 'unified time axis' may be collected, only once. "
                 "Please only call this function once :)"
             )
         # expect a MDF file --> create a unified time axis from each signal of it
         #   bit of an inefficiency to MDF.select(...) twice... but its OK for now
         self.time_axis = unify_timestamps(mdf_file)  # likely a np float64
 
-        # decompressed row size
-        #   it is recorded if 2x of that must be allocated as uint32, 
-        #   as the last transformation
-        #   so we can record the target rowsize, and know if we need to *2 that 
-        #       by considering the last entry, which should be a boolean, in txs
+        # save the decompressed array length
+        #   it would be recorded if required to split uint64 to 2x-uint32,
+        #       which would require twice the malloc, 
+        #       as the last "transformation"
+        # TODO that above information isnt important to have 
+        #   once the logic is done in the helper function
         decompressed_shape = self.time_axis.shape
 
-        # compress (which does transformations), 
-        #   add transformations to time_metadata, 
-        #   and write the time array
+        # transform & compress
         compressed_time, txs = compress_time(self.time_axis)
-        compressed_size_bytes = len(compressed_time)
-        # save time_metadata
-        self.time_metadata = (self.curr_offset, compressed_size_bytes, decompressed_shape, txs)
-        # write to file & increment curr_offset
+        self.time_metadata = (self.curr_offset, len(compressed_time), decompressed_shape, txs)
+        # write to file & save a flag so we dont do it again!
         self._write_bytes(compressed_time)
-        # save flag
         self._has_set_time = True
+        return True
         
 
-    def compress_signals(self, mdf_file: MDF):
+    def compress_all_signals(self, mdf_file: MDF):
         '''
         for all channels in the mdf file,
             apply appropriate compression for its dtype & shape,
             write to the file,
             add to metadata
+
+        this can just be a wrapper around compress_signal function
+
+        not done yet!!
         '''
         raise NotImplementedError("TODO")
 
@@ -234,13 +244,12 @@ class MDFCompressor(object):
     #   args dtypes
     #   decide on complex shape approach...
     #       probably just unravel
-    def _compress_signal(
+    def compress_signal(
         self, 
         signal: Signal,
+        *a, 
         **kwargs
-        # tolerance=-1,
-        # significands=-1,
-    ):
+    ) -> bool:
         '''
         compress a MDF.signal.Signal, object 
         which contains the raw data values, 
@@ -253,26 +262,74 @@ class MDFCompressor(object):
             TODO need to decide how to properly write that
             into mdf_metadata
 
-        signal should be derived from the MDF library,
+        signal should be an object, got from the MDF library,
             perhaps using mdf_file.select(..., raw=True)
-            ie the raw samples values should be used
+            ! ie the raw samples values should be used !
+        
+        The indices of the timestamps are aligned
+            against the "unified time axis"
+            and then differentiated & compressed using pfor integer compression
+            ! therefore, unify_compress_time function should be done 
+              before compressing any signal !
+        
+        Complex signal data shapes, eg 2-dimensional arrays,
+            are unraveled ("flattened") before compression
+            although TODO this is not done yet :)
 
-        use the indexes of time values, 
-        according to the unified timestamps block
-            which is referenced as .time_axis,
-            and will always be sorted asc,
-        save idx loc & differentiate,
-            & write those first...
-            which i guess we need to write the compresed length
-            in metadata
+        for integers dtypes, 
+            some transformations are applied
+            and then pfor integer compression is used
 
-        for int arrays, we can just use u32 compression,
-            with a few tx's
-
-        for float arrays, we can just use zfp,
-            which doesnt need any tx?
-            but it can support some lossy tolerance amt
+        for float dtypes, 
+            zfp library is used directly,
+            which doesnt require any transformations,
+                and under that context, 
+                is "lossless floating point compression",
+            but a "tolerance" is supported by zfp,
+                which specifies a lower bound for "lossy compression",
+                which can substantially improve the compression ratio
+                even with a small "tolerance", eg 1e-8
+        keyword arguments to use that parameter, 
+        for "lossy floating point compression", are:
+        - tolerance: 
+            directly passed as-is to the zfp compression function
+        - significands: 
+            a integer representing the number of additional decimal digits to retain,
+            compared to the significance of the smallest non-zero value observed in the signal samples
+            eg: if...
+            - the smallest non-zero value in the Signal = 0.0123456
+            - significands = 3
+            result: tolerance value becomes 1e-5 (-5 = -2 - 3)
+                    and the smallest value will compress as 0.01234
+                    and all values will retain 5 decimal digits
+                        ... i think ... since this is an absolute tolerance parameter
+        - minimum_tolerance: 
+            a numeric value that can be passed with significands,
+            which will be a floor of the tolerance,
+            which may be helpful if the minimum value is very low
+            and the span is still relatively large,
+                eg: if...
+                - smallest non-zero value is 1e-25
+                - minimum_tolerance = 1e-6,
+                result: tolerance value becomes 1e-8
         '''
+        # this should be done first before compressing any signal
+        if not self._has_set_time:
+            raise MDFCompressorException(
+                "The 'unified time axis' should be collected & compressed "
+                "before compressing any signal! "
+                "Please call unify_compress_time function first :)"
+            )
+        # i suppose we should ensure no overlaps in name...
+        #   although TODO this will need to be comprehended better
+        #   to allow MDF signals with same name, but different groups
+        if (signal.name in self.metadata.keys()):
+            raise MDFCompressorException(
+                "Presently, only unique names of signals are allowed to be included "
+                f"in a MDFC file. Signal named {signal.name} was already compressed!"
+            )
+        # proceed
+
         # first we need to write the shape of the values block
         #   it is already .select'ed 
         #   so everything is loaded into memory already
