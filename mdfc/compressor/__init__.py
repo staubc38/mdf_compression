@@ -21,6 +21,7 @@ from .. import (
     METADATA_POS_SIZE,
     METADATA_LENGTH_SIZE,
     MAX_METADATA_BYTES,
+    METADATA_DEFAULT_FIELDS,
 )
 from ..transform import compress_time, compress_samples_time, compress_samples
 from ..utils import (
@@ -86,7 +87,7 @@ class MDFCompressor(object):
         #       'txs': [... enums of transformations applied, in order, during compression...],
         #   }}
         # and can be just a json dump at the footer for now
-        self.metadata = defaultdict(lambda: {'start': -1, 'csize_t': -1, 'csize': -1, 'dshape': -1, 'txs': list()})
+        self.metadata = defaultdict(lambda: METADATA_DEFAULT_FIELDS)
         self.mdf_metadata = {}  # other required to reconstruct MDF file, TODO issue #2
 
         # key feature of mdfc -> single unified time block can be constructed
@@ -233,7 +234,13 @@ class MDFCompressor(object):
     #   args dtypes
     #   decide on complex shape approach...
     #       probably just unravel
-    def _compress_signal(self, signal: Signal):
+    def _compress_signal(
+        self, 
+        signal: Signal,
+        **kwargs
+        # tolerance=-1,
+        # significands=-1,
+    ):
         '''
         compress a MDF.signal.Signal, object 
         which contains the raw data values, 
@@ -272,22 +279,30 @@ class MDFCompressor(object):
         #   TODO needs adjustment if we incrementally compress or not
         shape = signal.samples.shape  # rows*... (right?)
         self.metadata[signal.name]['dshape'] = shape
-        # print(f'{signal.name} with shape {shape}')
+        # and the dtype (presently, the name...)
+        dtype = signal.samples.dtype.name
+        self.metadata[signal.name]['dtype'] = dtype
+        # print(f'{signal.name} with dtype {dtype} and shape {shape}')
+
+        # begin compression for signal timestamps
+
         # copmress & write timestamps block
         compressed_time = compress_samples_time(signal.timestamps, self)
-        # save this signal metadata,
         self.metadata[signal.name]['start'] = self.curr_offset
+        
+        # save this signal metadata,
         self.metadata[signal.name]['csize_t'] = len(compressed_time)
         self._write_bytes(compressed_time)
         # print(f'finish compress time')
 
+        # begin compression for signal samples
+        
         # compress & write values
-        compressed, txs = compress_samples(signal)
-        compressed_size_bytes = len(compressed)
+        compressed, txs = compress_samples(signal, dtype, **kwargs)
         # write to file & increment curr_offset
         self._write_bytes(compressed)
         # save metadata
-        self.metadata[signal.name]['csize'] = compressed_size_bytes
+        self.metadata[signal.name]['csize'] = len(compressed)
         self.metadata[signal.name]['txs'] = txs
         
         return True

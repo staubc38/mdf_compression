@@ -34,3 +34,29 @@ Presently, applying these transformations:
         and maybe we could determine if another tx could be applied?
             to further reduce size
         single-diff us seems OK
+
+
+
+- After properly implementing pfor & testing with ~100 MB uncompressed MDF file
+    based on random integer data within i32 size
+    looks like we do still get some meaningful compression:
+    - 98 MB uncompressed MDF
+    - 58 MB compressed MDF (using zlib compression, the ASAM standard)
+    - 30 MB using MDFCompressor!
+- Further, much faster to read (of course):
+    - 12 seconds to read all messages from uncompressed MDF
+    - 70 seconds (!) to read all messages from zlib-compressed MDF
+    - 100 ms (!!) to read all messages from MDFDecompressor!
+- Sort/diff random integers does not help, 
+    because having to compress & include the order.
+    ~1.2x larger including "sort-order & sorted/diff samples", vs just the random values as is
+- compressing the compressed bytes does not help
+    perhaps that should be expected... by someone smarter than me
+
+
+- after initial implementation of zfp lossy float compressor,
+    based on uniform random float values around +/- 1e10
+    looks like there is compression good at 4-5 significands
+    	which is a pretty big value acutally
+    doesnt help much to have 3
+- what about a sine wave...

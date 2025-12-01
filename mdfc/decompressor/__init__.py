@@ -20,6 +20,7 @@ from .. import (
     METADATA_POS_SIZE,
     METADATA_LENGTH_SIZE,
     MAX_METADATA_BYTES,
+    METADATA_DEFAULT_FIELDS,
 )
 from ..transform import decompress_time, decompress_samples_time, decompress_samples
 
@@ -66,7 +67,7 @@ class MDFDecompressor(object):
         #       'txs': [... enums of transformations applied, in order, during compression...],
         #   }}
         # and can be just a json dump at the footer for now
-        self.metadata = defaultdict(lambda: {'start': -1, 'csize_t': -1, 'csize': -1, 'dshape': -1, 'txs': list()})
+        self.metadata = defaultdict(lambda: METADATA_DEFAULT_FIELDS)
         self.mdf_metadata = {}  # other required to reconstruct MDF file, TODO issue #2
 
         # we need to save the decompressed time axis to look up the index values with each MDF signal
@@ -162,6 +163,8 @@ class MDFDecompressor(object):
         '''
         # signal shape in metadata
         signal_shape = self.metadata[signal_name]['dshape']
+        # dtype of signal
+        signal_dtype = self.metadata[signal_name]['dtype']
         # start/len in metadata
         signal_start = self.metadata[signal_name]['start']
         compressed_bytes_len = self.metadata[signal_name]['csize_t']
@@ -178,7 +181,7 @@ class MDFDecompressor(object):
         compressed_bytes_len = self.metadata[signal_name]['csize']
         # compressed signal bytes start after the time
         compressed = self._read_bytes(compressed_bytes_len)
-        decompressed = decompress_samples(compressed, signal_shape, self.metadata[signal_name]['txs'])
+        decompressed = decompress_samples(compressed, signal_dtype, signal_shape, self.metadata[signal_name]['txs'])
         # i think a copy is required, 
         #   since later we will use a single buffer for decomp & txing
         samples = decompressed.copy()

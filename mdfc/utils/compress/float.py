@@ -40,10 +40,18 @@ def compress_f(arr, atol=-1):
     # zfp seems to handle 32/64
     bitwise_split_required = False
 
+    # although if this is a bytes, 
+    #   the dimension should be communicated
+    #   not sure if we are f32 or 64 (or...)
+    if isinstance(arr, bytes):
+        raise NotImplementedError("Pass a numpy array to compress_f... ")
+        # something like this, but we need to know the bitsize
+        # arr = np.frombuffer(dtype=np.float32, buffer=arr)
+
     # no need to allocate a buffer,
     # until we want to use a preallocated buffer later
     #   TODO ^^
 
-    # it is already bytes
+    # it is already returned as bytes
     comp_buffer = compress_numpy(arr, tolerance=atol)
     return (comp_buffer, bitwise_split_required)
