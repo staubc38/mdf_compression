@@ -135,7 +135,7 @@ class MDFDecompressor(object):
         self.time_axis = decompress_time(compressed, num_elements_expected, txs)
         return True
 
-    def decompress_signals(self):
+    def decompress_all_signals(self):
         '''
         Decompress all signals into MDF signal Signal objects
             containing the raw values, timestamps, 
@@ -148,7 +148,7 @@ class MDFDecompressor(object):
         '''
         raise NotImplementedError("TODO!")
 
-    def _decompress_signal(self, signal_name):
+    def decompress_signal(self, signal_name):
         '''
         from the signal name,
             which should just be a key in the metadata,

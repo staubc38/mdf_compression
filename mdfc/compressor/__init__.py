@@ -8,6 +8,7 @@ from io import BytesIO, SEEK_SET, SEEK_END
 import json
 import os
 from collections import defaultdict
+import copy
 
 # for python demo, required asammdf py library
 from asammdf import MDF
@@ -81,7 +82,7 @@ class MDFCompressor(object):
         # then write the accumulated metadata as a footer
         # and update bytesize of the metadata in a placehodler in the header
         # for now the compression metadata is just a json dump :)
-        self.metadata = defaultdict(lambda: METADATA_DEFAULT_FIELDS)
+        self.metadata = defaultdict(lambda: copy.deepcopy(METADATA_DEFAULT_FIELDS))
         # and the MDF metadata is not captured yet :) TODO issue #2
         self.mdf_metadata = {}
 
@@ -320,10 +321,11 @@ class MDFCompressor(object):
                 "before compressing any signal! "
                 "Please call unify_compress_time function first :)"
             )
+        signal_name = signal.name
         # i suppose we should ensure no overlaps in name...
         #   although TODO this will need to be comprehended better
         #   to allow MDF signals with same name, but different groups
-        if (signal.name in self.metadata.keys()):
+        if (signal_name in self.metadata.keys()):
             raise MDFCompressorException(
                 "Presently, only unique names of signals are allowed to be included "
                 f"in a MDFC file. Signal named {signal.name} was already compressed!"
@@ -335,20 +337,20 @@ class MDFCompressor(object):
         #   so everything is loaded into memory already
         #   TODO needs adjustment if we incrementally compress or not
         shape = signal.samples.shape  # rows*... (right?)
-        self.metadata[signal.name]['dshape'] = shape
+        self.metadata[signal_name]['dshape'] = shape
         # and the dtype (presently, the name...)
         dtype = signal.samples.dtype.name
-        self.metadata[signal.name]['dtype'] = dtype
+        self.metadata[signal_name]['dtype'] = dtype
         # print(f'{signal.name} with dtype {dtype} and shape {shape}')
 
         # begin compression for signal timestamps
 
         # copmress & write timestamps block
         compressed_time = compress_samples_time(signal.timestamps, self)
-        self.metadata[signal.name]['start'] = self.curr_offset
+        self.metadata[signal_name]['start'] = self.curr_offset
         
         # save this signal metadata,
-        self.metadata[signal.name]['csize_t'] = len(compressed_time)
+        self.metadata[signal_name]['csize_t'] = len(compressed_time)
         self._write_bytes(compressed_time)
         # print(f'finish compress time')
 
@@ -359,7 +361,7 @@ class MDFCompressor(object):
         # write to file & increment curr_offset
         self._write_bytes(compressed)
         # save metadata
-        self.metadata[signal.name]['csize'] = len(compressed)
-        self.metadata[signal.name]['txs'] = txs
+        self.metadata[signal_name]['csize'] = len(compressed)
+        self.metadata[signal_name]['txs'] = txs
         
         return True
