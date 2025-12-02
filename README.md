@@ -7,7 +7,7 @@ Key charactaristics include:\
 * data (records), within a channel, are always of of the same data type during recording. Unstructured bytes is "supported" but usually these are just 1d (small) integers & floats. 
   * The source is usually from network messages onboard a vehicle embedded controller(s). Therefore small integer values are likely the main type used anyway.
   * When floating point values are captured directly, usually the source is from physical sensing devices (eg thermocouple, pressure transducer, ...), which measure continuous properties.\
-  Therefore some loss in the value is usually tolerable (don't care about +/- 0.001 degrees celsius
+  Therefore some loss in the value is usually tolerable (usually, +/- 0.01 degrees celsius or +/- 10 pascals is acceptable error)
 
 Therefore, these charactaristics are good for a specialized compressed file structure, & use of specialized compression algorithms, rather than "generic, off-the-shelf lossless compression":\
 * PFOR: https://github.com/fast-pack/FastPFOR
