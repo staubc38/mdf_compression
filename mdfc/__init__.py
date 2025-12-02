@@ -37,6 +37,14 @@ METADATA_DEFAULT_FIELDS = {
     'dtype': '',    # original dtype of the decompressed samples
                     #     this should come from the ETAS metadata...
                     #     but presently it is judged by the numpy dtype :( 
-    'txs': list()   # transformations (enums of functions) applied for compression
+    'txs': list(),  # transformations (enums of functions) applied for compression
                     #     which are reversible for decompression
+
+    # add a new flag to indicate if we apply zlib compress
+    #   as the final step during compression
+    #   which is essentially "double-compression"
+    #   and therefore the first flag on decompression
+    'applies_zlib': # zlib can be applied to the compressed bytes result
+        False,      #     which may give higher compression ratio
+                    #     at the cost of extra time
 }

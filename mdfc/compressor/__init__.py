@@ -345,8 +345,14 @@ class MDFCompressor(object):
 
         # begin compression for signal timestamps
 
+        # testing -> add a new flag, indicate
+        #            if it should be decompressed from zlib
+        #            before proceeding with decompression
+        applies_zlib = kwargs.pop('applies_zlib', False)
+        self.metadata[signal_name]['applies_zlib'] = applies_zlib
+
         # copmress & write timestamps block
-        compressed_time = compress_samples_time(signal.timestamps, self)
+        compressed_time = compress_samples_time(signal.timestamps, self, applies_zlib=applies_zlib)
         self.metadata[signal_name]['start'] = self.curr_offset
         
         # save this signal metadata,
@@ -357,7 +363,7 @@ class MDFCompressor(object):
         # begin compression for signal samples
         
         # compress & write values
-        compressed, txs = compress_samples(signal, dtype, **kwargs)
+        compressed, txs = compress_samples(signal, dtype, applies_zlib=applies_zlib, **kwargs)
         # write to file & increment curr_offset
         self._write_bytes(compressed)
         # save metadata

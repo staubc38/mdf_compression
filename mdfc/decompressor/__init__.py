@@ -93,6 +93,11 @@ class MDFDecompressor(object):
         #   second element is signals metadata
         self.time_metadata, self.metadata = json.loads(self._read_bytes(metadata_length, metadata_pos))
         # TODO read the MDF metadata
+
+        # TODO not sure if we should decompress the timeaxis upfront
+        # but i will, for now
+        #   it can be done multiple times
+        self.decompress_time()
         return self
     def __exit__(self, exc_type, exc_value, traceback):
         if self.fstream:
@@ -165,9 +170,12 @@ class MDFDecompressor(object):
         signal_start = self.metadata[signal_name]['start']
         csize = self.metadata[signal_name]['csize_t']
 
+        # testing new flag applies_zlib
+        applies_zlib = self.metadata[signal_name]['applies_zlib']
+
         # samples timestamps block is written first
         compressed = self._read_bytes(csize, signal_start)
-        decompressed = decompress_samples_time(compressed, signal_shape[0], self)
+        decompressed = decompress_samples_time(compressed, signal_shape[0], self, applies_zlib=applies_zlib)
         # i think a copy is required, 
         #   since later we will use a single buffer for decomp & txing
         #   TODO can this go underneath the decompression function?
@@ -176,7 +184,7 @@ class MDFDecompressor(object):
         # samples block is written directly after timestamps
         csize = self.metadata[signal_name]['csize']
         compressed = self._read_bytes(csize)
-        decompressed = decompress_samples(compressed, signal_dtype, signal_shape, self.metadata[signal_name]['txs'])
+        decompressed = decompress_samples(compressed, self.metadata[signal_name])  # signal_dtype, signal_shape, self.metadata[signal_name]['txs'])
         # i think a copy is required, 
         #   since later we will use a single buffer for decomp & txing
         #   TODO can this go underneath the decompression function?

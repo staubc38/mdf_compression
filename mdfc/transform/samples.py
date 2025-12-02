@@ -230,6 +230,9 @@ def compress_samples(signal, dtype, **kwargs):
     TODO float is not implemented yet
         "tolerance" input can be used in that case 
     '''
+    # testing -> applies_zlib
+    applies_zlib = kwargs.pop('applies_zlib', False)
+
     if not (dtype in VALID_DTYPE_NAMES):
         raise ValueError(f"dtype {dtype} not recognized, please use one of ({', '.join(VALID_DTYPE_NAMES)})")
     samples = signal.samples
@@ -240,9 +243,14 @@ def compress_samples(signal, dtype, **kwargs):
         compressed, txs = _compress_float(samples, **kwargs)
     else:
         raise ValueError(f"Unrecognized dtype {dtype} in metadata...")
+
+    
+    if applies_zlib:
+        import zlib
+        compressed = zlib.compress(compressed, 9)
     return compressed, txs
 
-def decompress_samples(compressed, dtype, shape_expected, txs):
+def decompress_samples(compressed, metadata):  # dtype, shape_expected, txs, ):
     '''
     with the compressed array loaded into memory, 
         or the bytes, which will be loaded into a 1d numpy array
@@ -255,6 +263,13 @@ def decompress_samples(compressed, dtype, shape_expected, txs):
     decompress & transform the array in reverse,
     to arrive at the original values
     '''
+
+    # unpack metadata
+    dtype = metadata.get('dtype')
+    shape_expected = metadata.get('dshape')
+    txs = metadata.get('txs')
+    applies_zlib = metadata.get('applies_zlib')
+
     if not (dtype in VALID_DTYPE_NAMES):
         raise ValueError(f"dtype {dtype} not recognized, please use one of ({', '.join(VALID_DTYPE_NAMES)})")
     
@@ -262,6 +277,11 @@ def decompress_samples(compressed, dtype, shape_expected, txs):
     num_elem_expected = shape_expected[0]
     for n in shape_expected[1:]:
         num_elem_expected *= n
+
+    # apply zlib if flagged
+    if applies_zlib:
+        import zlib
+        compressed = zlib.decompress(compressed)
 
     # TODO this works presently... maybe not when we use ASAM/MDF dtype names
     # print(dtype)
