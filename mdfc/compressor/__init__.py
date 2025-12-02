@@ -1,14 +1,13 @@
 '''
-class to support compression & serialization of MDFC file
+class to support compression & serialization of a MDFC file
 '''
-from typing import Optional, Union
+from typing import Optional, Union, Literal
 
 from pathlib import Path
 from io import BytesIO, SEEK_SET, SEEK_END
-import json
-import os
 from collections import defaultdict
-import copy
+import json, copy
+
 
 # for python demo, required asammdf py library
 from asammdf import MDF
@@ -22,11 +21,21 @@ from .. import (
     MAX_METADATA_BYTES,
     METADATA_DEFAULT_FIELDS,
 )
-from ..transform import compress_time, compress_samples_time, compress_samples
+from ..transform import (
+    compress_time, compress_samples_time, 
+    compress_samples
+)
 from ..utils import (
     unify_timestamps
 )
 
+
+# TODO this should go elsewhere
+import warnings
+def convert_error_to_warning(exception):
+    warning = RuntimeWarning(*exception.args)
+    warning.with_traceback(exception.__traceback__)
+    return warning
 
 
 # writer exceptions
@@ -47,9 +56,11 @@ class MDFCompressor(object):
     ):
         '''
         create a MDFCompressor object, 
-        from a file path or BytesIO object, 
+        from a file path or BytesIO object,
             or a BytesIO will be created internally,
-            and open the file for writing,
+            and open the file for writing 
+                ! and seek to the beginning !
+            on __enter__
         and prepare to compress data,
             "signal-by-signal",
             from an existing !terminated! MDF file
@@ -109,6 +120,8 @@ class MDFCompressor(object):
     # context manager can open/close the stream
     def __enter__(self):
         self.fstream = self.open_stream_func()
+        # i think we need to ensure seek to the start, right?
+        self.fstream.seek(0, SEEK_SET)
         self._write_bytes(MAGIC_HEADER)
         # placeholder for location of compression metadata start
         self._write_bytes(int(0).to_bytes(METADATA_POS_SIZE))
@@ -151,7 +164,8 @@ class MDFCompressor(object):
         md_bytes = json.dumps(out_md).encode('utf-8')
         md_bytes_size = len(md_bytes)
         # TODO could this be checked upfront somehow??
-        assert len(md_bytes) < MAX_METADATA_BYTES, "too much decompression metadata accumulated :'( sorry!"
+        assert md_bytes_size < MAX_METADATA_BYTES, \
+            "too much decompression metadata accumulated :'( sorry!"
         # update placeholders for metadata position and size
         self.fstream.seek(len(MAGIC_HEADER), SEEK_SET)
         self.fstream.write(int(self.curr_offset).to_bytes(METADATA_POS_SIZE))
@@ -218,7 +232,10 @@ class MDFCompressor(object):
         decompressed_shape = self.time_axis.shape
 
         # transform & compress
-        compressed_time, txs = compress_time(self.time_axis)
+        compressed_time, txs = compress_time(
+            self.time_axis,
+            applies_zlib=True
+        )
         self.time_metadata = (self.curr_offset, len(compressed_time), decompressed_shape, txs)
         # write to file & save a flag so we dont do it again!
         self._write_bytes(compressed_time)
@@ -226,33 +243,95 @@ class MDFCompressor(object):
         return True
         
 
-    def compress_all_signals(self, mdf_file: MDF):
+    def compress_all_signals(
+        self, 
+        mdf_file: MDF,
+        *a,
+        on_error: Literal['raise', 'ignore', 'warn'] = 'warn',
+        significands: int = -1,
+        tolerance: float = -1,
+        minimum_tolerance: float = -1,
+        applies_zlib: bool = True,
+    ) -> bool:
         '''
         for all channels in the mdf file,
-            apply appropriate compression for its dtype & shape,
-            write to the file,
-            add to metadata
+            call compress_signal function with it
 
-        this can just be a wrapper around compress_signal function
+        argument on_error can indicate (default "warn"):
+        - "raise":  propogate exceptions from compress_signal
+                        stopping the loop & possibly not properly finishing copmression!
+                        ie, compression metadata will not be written
+                            unless finish function is called
+        - "warn":   print a python warning message of the exceptions
+                        raised from compress_signal
+                        TODO, consider implementing logging module
+        - "ignore": suppress exceptions from compress_signal
+                        compression metadata will still indicate 
+                        that compression has failed
+                        by having default "compressed size" value, -1
+                            & other default values...
 
-        not done yet!!
+        Returns True on success,
+        raises exceptions otherwise
         '''
-        raise NotImplementedError("TODO")
-
-
+        # temporary check, 
+        #   we only support the signal names presently
+        #   so lets check for that before going
+        for key, chans in mdf_file.channels_db.items():
+            if (key == 'time'): continue
+            if (len(chans) > 1):
+                raise NotImplementedError(
+                    f"Channel named {key} is found, by name, in multiple groups: "
+                    f"({', '.join(str(k) for k in chans)}). "
+                    "Presently only unique names may be compressed in MDFC file 😟 "
+                    "Sorry!"
+                )
+        # set timeaxis if not already
+        if not self._has_set_time:
+            self.unify_compress_time(mdf_file)
+        # compress all signals
+        sigs = [
+            sig_name # (sig_name, *chan_info) 
+            for sig_name, chan_info in mdf_file.channels_db.items()
+            if (sig_name != 'time')
+        ]
+        for sig_name in sigs:
+            # read all the data only one signal at a time
+            sig = mdf_file.select([sig_name], raw=True)[0]
+            # compress the signal
+            try:
+                self.compress_signal(
+                    sig,
+                    significands = significands,
+                    tolerance = tolerance,
+                    minimum_tolerance = minimum_tolerance,
+                    applies_zlib = applies_zlib,
+                )
+            except Exception as e:
+                if on_error == 'raise':
+                    raise e
+                elif on_error == 'warn':
+                    warnings.warn(convert_error_to_warning(e))
+                elif on_error == "ignore":
+                    pass
+        return True
 
     # TODO
     #   args dtypes
     #   decide on complex shape approach...
-    #       probably just unravel
+    #       unraveling strategy
+    #       does one orientation give better compression?
     def compress_signal(
         self, 
         signal: Signal,
         *a, 
-        **kwargs
+        significands: int = -1,
+        tolerance: float = -1,
+        minimum_tolerance: float = -1,
+        applies_zlib: bool = True,
     ) -> bool:
         '''
-        compress a MDF.signal.Signal, object 
+        compress a MDF.signal.Signal object 
         which contains the raw data values, 
             of some shape m,n
             as .samples
@@ -263,14 +342,16 @@ class MDFCompressor(object):
             TODO need to decide how to properly write that
             into mdf_metadata
 
-        signal should be an object, got from the MDF library,
-            perhaps using mdf_file.select(..., raw=True)
+        signal should be an object, got from the asammdf library,
+            using mdf_file.select(..., raw=True)
             ! ie the raw samples values should be used !
+                of course
         
         The indices of the timestamps are aligned
             against the "unified time axis"
             and then differentiated & compressed using pfor integer compression
-            ! therefore, unify_compress_time function should be done 
+            ! therefore, unify_compress_time function 
+              should be called  
               before compressing any signal !
         
         Complex signal data shapes, eg 2-dimensional arrays,
@@ -290,8 +371,19 @@ class MDFCompressor(object):
                 which specifies a lower bound for "lossy compression",
                 which can substantially improve the compression ratio
                 even with a small "tolerance", eg 1e-8
-        keyword arguments to use that parameter, 
-        for "lossy floating point compression", are:
+        
+        zlib compression level 9 may be additionally applied to the compressed result,
+            if "applies_zlib" keyword argument is set to True,
+            which adds more compression to integer dtypes
+            adding some, but not terribly much, decompression time
+        zlib compression level 9 may also be additionally applied to compressed floats,
+            which does not help too much in this case,
+                most of fp compression is achieved only by "lossy compression"
+                ie using significands, tolerance, and minimum_tolerance parameters
+            however, it also doesnt add a terrible amount of decompression time
+            perhaps in the future this should be smarter & not require argument input
+
+        keyword arguments to use parameters for lossy fp compression are: 
         - tolerance: 
             directly passed as-is to the zfp compression function
         - significands: 
@@ -313,6 +405,21 @@ class MDFCompressor(object):
                 - smallest non-zero value is 1e-25
                 - minimum_tolerance = 1e-6,
                 result: tolerance value becomes 1e-8
+
+        returns True if successful compression, 
+        raises exceptions otherwise including:
+            MDFCompressorException:
+            - if order of operations is not respected
+                unify_compress_time function must be called before this function
+            - if a signal with same name is compressed twice
+                compression is written to the bytestream on success
+                therefore it is more difficult & not supported here
+                    to go backwards
+            ValueError:
+            - TODO
+            TypeError:
+            - TODO
+            ...more? TODO
         '''
         # this should be done first before compressing any signal
         if not self._has_set_time:
@@ -321,50 +428,51 @@ class MDFCompressor(object):
                 "before compressing any signal! "
                 "Please call unify_compress_time function first :)"
             )
-        signal_name = signal.name
-        # i suppose we should ensure no overlaps in name...
-        #   although TODO this will need to be comprehended better
+        
+        # cannot tolerate overlapping keys... 
+        #   which presently are the signal names
+        #   TODO this will need to be comprehended better
         #   to allow MDF signals with same name, but different groups
+        signal_name = signal.name
         if (signal_name in self.metadata.keys()):
             raise MDFCompressorException(
                 "Presently, only unique names of signals are allowed to be included "
                 f"in a MDFC file. Signal named {signal.name} was already compressed!"
             )
-        # proceed
 
-        # first we need to write the shape of the values block
-        #   it is already .select'ed 
-        #   so everything is loaded into memory already
-        #   TODO needs adjustment if we incrementally compress or not
-        shape = signal.samples.shape  # rows*... (right?)
+        # we can proceed
+
+        # we can write some metadata required for decompression first
+        shape = signal.samples.shape
         self.metadata[signal_name]['dshape'] = shape
-        # and the dtype (presently, the name...)
         dtype = signal.samples.dtype.name
         self.metadata[signal_name]['dtype'] = dtype
-        # print(f'{signal.name} with dtype {dtype} and shape {shape}')
-
-        # begin compression for signal timestamps
-
-        # testing -> add a new flag, indicate
-        #            if it should be decompressed from zlib
-        #            before proceeding with decompression
-        applies_zlib = kwargs.pop('applies_zlib', False)
+        # should we double-compress this signal?
         self.metadata[signal_name]['applies_zlib'] = applies_zlib
 
-        # copmress & write timestamps block
-        compressed_time = compress_samples_time(signal.timestamps, self, applies_zlib=applies_zlib)
-        self.metadata[signal_name]['start'] = self.curr_offset
-        
-        # save this signal metadata,
+        # begin compression for signal timestamps
+        # only write metadata this if we succeed compression & writing
+        compressed_time = compress_samples_time(
+            signal.timestamps, 
+            self, 
+            applies_zlib=applies_zlib,
+        ) 
+        start_pos = self.curr_offset
+        self._write_bytes(compressed_time)  # it increments self.curr_offset
+        self.metadata[signal_name]['start'] = start_pos
         self.metadata[signal_name]['csize_t'] = len(compressed_time)
-        self._write_bytes(compressed_time)
-        # print(f'finish compress time')
-
-        # begin compression for signal samples
         
-        # compress & write values
-        compressed, txs = compress_samples(signal, dtype, applies_zlib=applies_zlib, **kwargs)
-        # write to file & increment curr_offset
+        
+        # begin compression for signal samples
+        # only write metadata if we succeed compression & writing
+        compressed, txs = compress_samples(
+            signal, 
+            dtype, 
+            applies_zlib=applies_zlib, 
+            tolerance=tolerance,
+            significands=significands,
+            minimum_tolerance=minimum_tolerance,
+        )
         self._write_bytes(compressed)
         # save metadata
         self.metadata[signal_name]['csize'] = len(compressed)
