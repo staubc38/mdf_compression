@@ -7,7 +7,7 @@ Header: 24 bytes
 +--------+------------+------------+--------
 | 8 byte | 8 byte     | 8 byte     | ...    
 | magic  | "C-footer" | "C-footer" | cont.  
-| header | position   | length     | below  
+| header | bytes pstn | bytes lgth | below  
 +--------+------------+------------+--------
 ```
 
