@@ -102,25 +102,44 @@ def generate_groups_ints(
                 columns=[f'int_{sample_interval}ms_{n+counter}' for n in range(c)]
             )
             groups.append(df)
-
-            # i want to include a few channels that "count up"
-            #   like a keep-alive signal/counter
-            #   0->1->2->3->4->0->1->2->...
-            if include_keepalive:
-                c = 10
-                df = pd.DataFrame(
-                    data=np.ones(shape=(r,c)),
-                    index=df.index,  # first index
-                    columns=[f'counter_{sample_interval}ms_{n+counter}' for n in range(c)]
-                )
-                df = (df.cumsum()%10).astype(np.int32)
-                groups.append(df)
-                counter += c
+            counter += c
     return groups
 
 # TODO when ready, mix in some floats, 
 #   some 2d data?
 #   images?
+def generate_groups_keepalives(
+    *a,
+    time_s=3600, 
+    sample_intervals_ms = (1000, 500, 250, 100),
+    channels_per_interval=200,
+    channels_per_group=4,
+
+    ilo=-1024,
+    ihi=1024,
+
+    include_keepalive=False,
+
+    **kwargs
+):
+    # i want to include a few channels that "count up"
+    #   like a keep-alive signal/counter
+    #   0->1->2->3->4->0->1->2->...
+    counter = 1  # oof :(
+    groups = []  # pd DataFrames
+    for sample_interval in sample_intervals_ms:
+        for g in range(int(channels_per_interval/channels_per_group)):
+            r = int(time_s*(1000/sample_interval))
+            c = channels_per_group
+            df = pd.DataFrame(
+                data=np.ones(shape=(r,c)),
+                index=np.array(range(r))*(time_s/r),
+                columns=[f'counter_{sample_interval}ms_{n+counter}' for n in range(c)]
+            )
+            df = (df.cumsum()%10).astype(np.int32)
+            groups.append(df)
+            counter += c
+    return groups
 
 def generate_sample_file(
     fname='sample_data.mf4',
@@ -129,6 +148,7 @@ def generate_sample_file(
     include_ints=True,
     include_floats=True,
     include_sines=True,
+    include_keepalives=True,
     **kwargs
 ):
     sample_mf4_fpa = os.path.join(
@@ -145,6 +165,9 @@ def generate_sample_file(
         groups.extend(g)
     if include_sines:
         g = generate_groups_sines(**kwargs)
+        groups.extend(g)
+    if include_keepalives:
+        g = generate_groups_keepalives(**kwargs)
         groups.extend(g)
     print(f"{len(groups)} total groups are generated")
     with asammdf.MDF(version='4.10') as mfil:
