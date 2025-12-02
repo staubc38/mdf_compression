@@ -8,6 +8,8 @@ def generate_groups_sines(
     time_s=3600, 
     sample_intervals_ms = (1000, 500, 250, 100),
     channels_per_interval=200,
+    channels_per_group=4,
+
     sfreq = 1,
     samp = 1e10,
     jitter = 1e-2,
@@ -16,26 +18,29 @@ def generate_groups_sines(
     '''
     generate some sine waves with some scale and jitter
     '''
+    counter = 1  # oof :(
     groups = []  # pd DataFrames
     for sample_interval in sample_intervals_ms:
-        r = int(time_s*(1000/sample_interval))
-        c = channels_per_interval
+        for g in range(int(channels_per_interval/channels_per_group)):
+            r = int(time_s*(1000/sample_interval))
+            c = channels_per_group
 
-        index = np.array(range(r))*(time_s/r)
+            index = np.array(range(r))*(time_s/r)
 
-        data = {
-            f'sine_{sample_interval}ms_{n}': 
-            (
-                np.sin(2*np.pi*index/sample_interval) +
-                ((np.random.rand(len(index))*2*jitter)-jitter)
+            data = {
+                f'sine_{sample_interval}ms_{n+counter}': 
+                (
+                    np.sin(2*np.pi*index/sample_interval) +
+                    ((np.random.rand(len(index))*2*jitter)-jitter)
+                )
+                for n in range(c)
+            }
+            df = pd.DataFrame(
+                data=data,
+                index=index,
             )
-            for n in range(c)
-        }
-        df = pd.DataFrame(
-            data=data,
-            index=index,
-        )
-        groups.append(df)
+            groups.append(df)
+            counter += c
     return groups
 
 def generate_groups_floats(
@@ -43,20 +48,25 @@ def generate_groups_floats(
     time_s=3600, 
     sample_intervals_ms = (1000, 500, 250, 100),
     channels_per_interval=200,
+    channels_per_group=4,
+
     flo=-1e10,
     fhi=1e10,
     **kwargs
 ):
+    counter = 1  # oof :(
     groups = []  # pd DataFrames
     for sample_interval in sample_intervals_ms:
-        r = int(time_s*(1000/sample_interval))
-        c = channels_per_interval
-        df = pd.DataFrame(
-            data=np.random.uniform(low=flo, high=fhi, size=(r, c)),
-            index=np.array(range(r))*(time_s/r),
-            columns=[f'float_{sample_interval}ms_{n}' for n in range(c)]
-        )
-        groups.append(df)
+        for g in range(int(channels_per_interval/channels_per_group)):
+            r = int(time_s*(1000/sample_interval))
+            c = channels_per_group
+            df = pd.DataFrame(
+                data=np.random.uniform(low=flo, high=fhi, size=(r, c)),
+                index=np.array(range(r))*(time_s/r),
+                columns=[f'float_{sample_interval}ms_{n+counter}' for n in range(c)]
+            )
+            groups.append(df)
+            counter += c
     return groups
 
 def generate_groups_ints(
@@ -64,6 +74,7 @@ def generate_groups_ints(
     time_s=3600, 
     sample_intervals_ms = (1000, 500, 250, 100),
     channels_per_interval=200,
+    channels_per_group=4,
 
     ilo=-1024,
     ihi=1024,
@@ -79,30 +90,32 @@ def generate_groups_ints(
     # 1 hour,
     # 400 at 1s, 200 at 0.5s, 200 at 0.25s, 200 at 0.1s
     # see how big that is...
-
+    counter = 1  # oof :(
     groups = []  # pd DataFrames
     for sample_interval in sample_intervals_ms:
-        r = int(time_s*(1000/sample_interval))
-        c = channels_per_interval
-        df = pd.DataFrame(
-            data=np.random.randint(low=ilo, high=ihi, size=(r, c)),
-            index=np.array(range(r))*(time_s/r),
-            columns=[f'int_{sample_interval}ms_{n}' for n in range(c)]
-        )
-        groups.append(df)
-
-        # i want to include a few channels that "count up"
-        #   like a keep-alive signal/counter
-        #   0->1->2->3->4->0->1->2->...
-        if include_keepalive:
-            c = 10
+        for g in range(int(channels_per_interval/channels_per_group)):
+            r = int(time_s*(1000/sample_interval))
+            c = channels_per_group
             df = pd.DataFrame(
-                data=np.ones(shape=(r,c)),
-                index=df.index,  # first index
-                columns=[f'counter_{sample_interval}ms_{n}' for n in range(c)]
+                data=np.random.randint(low=ilo, high=ihi, size=(r, c)),
+                index=np.array(range(r))*(time_s/r),
+                columns=[f'int_{sample_interval}ms_{n+counter}' for n in range(c)]
             )
-            df = (df.cumsum()%10).astype(np.int32)
             groups.append(df)
+
+            # i want to include a few channels that "count up"
+            #   like a keep-alive signal/counter
+            #   0->1->2->3->4->0->1->2->...
+            if include_keepalive:
+                c = 10
+                df = pd.DataFrame(
+                    data=np.ones(shape=(r,c)),
+                    index=df.index,  # first index
+                    columns=[f'counter_{sample_interval}ms_{n+counter}' for n in range(c)]
+                )
+                df = (df.cumsum()%10).astype(np.int32)
+                groups.append(df)
+                counter += c
     return groups
 
 # TODO when ready, mix in some floats, 
@@ -133,6 +146,7 @@ def generate_sample_file(
     if include_sines:
         g = generate_groups_sines(**kwargs)
         groups.extend(g)
+    print(f"{len(groups)} total groups are generated")
     with asammdf.MDF(version='4.10') as mfil:
         for df in groups:
             mfil.append(df)
