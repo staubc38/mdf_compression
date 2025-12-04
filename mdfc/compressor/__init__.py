@@ -53,6 +53,7 @@ class MDFCompressor(object):
     def __init__(self, 
         name: Optional[Union[str, Path, BytesIO]] = None, 
         overwrite: bool = False,
+        close_file_on_exit: bool = True
     ):
         '''
         create a MDFCompressor object, 
@@ -69,6 +70,7 @@ class MDFCompressor(object):
 
         intended for use as a context manager!
         '''
+        self.close_file_on_exit = close_file_on_exit
         self.overwrite = overwrite
         self.fstream = None  # placeholder, is set in __enter__
         if isinstance(name, BytesIO):
@@ -129,7 +131,7 @@ class MDFCompressor(object):
         self._write_bytes(int(0).to_bytes(METADATA_LENGTH_SIZE))
         return self
     def __exit__(self, exc_type, exc_value, traceback):
-        if self.fstream:
+        if self.fstream and self.close_file_on_exit:
             self.fstream.close()
         # TODO need to do anything else here?
     

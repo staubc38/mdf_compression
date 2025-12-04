@@ -52,7 +52,8 @@ class MDFDecompressor(object):
     '''
     def __init__(self, 
         name: Optional[Union[str, Path, BytesIO]], 
-        load_time_axis_on_enter=True
+        load_time_axis_on_enter: bool = True,
+        close_file_on_exit: bool = True
     ):
         '''
         create a MDFDecompressor object, 
@@ -72,6 +73,7 @@ class MDFDecompressor(object):
 
         intended for use as a context manager!
         '''
+        self.close_file_on_exit = close_file_on_exit
         self.fstream = None  # placeholder
         if isinstance(name, BytesIO):
             self.name = name
@@ -122,7 +124,7 @@ class MDFDecompressor(object):
             self.decompress_time()
         return self
     def __exit__(self, exc_type, exc_value, traceback):
-        if self.fstream:
+        if self.fstream and self.close_file_on_exit:
             self.fstream.close()
     
 

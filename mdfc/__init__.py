@@ -54,3 +54,8 @@ METADATA_DEFAULT_FIELDS = {
                     #     with floats, the extra compression isnt too much...
                     #         so maybe its not worth it in that case
 }
+
+
+# context manager classes
+from .compressor import MDFCompressor
+from .decompressor import MDFDecompressor

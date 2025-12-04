@@ -41,7 +41,7 @@ from ..utils.asammdf_util import map_times_to_timeaxis  # under .asammdf_util
 MAX_U64_VALUE = np.iinfo(np.uint64).max
 MAX_U32_VALUE = np.iinfo(np.uint32).max
 
-def compress_time(time_axis, **kwargs):
+def compress_time(time_axis, applies_zlib=True, **kwargs):
     ''' 
     take the unified time_axis (should be a f64 array)
     apply & record transformations in order
@@ -52,14 +52,15 @@ def compress_time(time_axis, **kwargs):
     so it may be generated & saved outside of this function
     '''
     # testing applies_zlib
-    applies_zlib = kwargs.pop('applies_zlib', False)
+    # applies_zlib = kwargs.pop('applies_zlib', False)
     assert time_axis.dtype == np.float64, f"got time_axis with dtype {time_axis.dtype} but expected f64!"
     # capture ahead of time max value for error messaging
     maxval = time_axis.max()
 
     txs = []  # (enumeration, argument value) transformations applied, in order
     # we must make a copy of it :'( 
-    #   or, reverse the transformations at the end? 
+    #   or, reverse the transformations at the end?
+    #   to not modify the original values, which are necessary to use elsewhere
     time_axis = time_axis.copy()
 
     # scale up until reaching whole numbers
@@ -69,6 +70,13 @@ def compress_time(time_axis, **kwargs):
     while not np.allclose(time_axis, np.round(time_axis)):
         scale *= 10
         time_axis = scale_up(time_axis, 10)  # just *=
+        # this is not true...?
+        #   since we always only store the differential
+        #   and can calculate with 64bits
+        # ah, no it is true, because we are going to downcast to uint
+        #   maybe it could be u128... meh... 64bit nanoseconds is 500 years
+        #   should be OK
+        # TODO this should be sorted so we can just check the last value
         if time_axis.max() > MAX_U64_VALUE:
             # enhancement would be required
             raise ValueError(
