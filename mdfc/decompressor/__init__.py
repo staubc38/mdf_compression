@@ -52,6 +52,7 @@ class MDFDecompressor(object):
     '''
     def __init__(self, 
         name: Optional[Union[str, Path, BytesIO]], 
+        load_time_axis_on_enter=True
     ):
         '''
         create a MDFDecompressor object, 
@@ -90,7 +91,8 @@ class MDFDecompressor(object):
         self.time_axis = None  # the decompressed, reconstructed, unified timestamps
         self.time_metadata = None  # (start, csize, dshape, [txs...])
         
-    
+        # convinience
+        self.load_time_axis_on_enter = load_time_axis_on_enter
     # context manager can open/close the stream
     def __enter__(self):
         self.fstream = self.open_stream_func()
@@ -116,7 +118,8 @@ class MDFDecompressor(object):
         # TODO not sure if we should decompress the timeaxis upfront
         # but i will, for now
         #   it can be done multiple times no problem
-        self.decompress_time()
+        if self.load_time_axis_on_enter:
+            self.decompress_time()
         return self
     def __exit__(self, exc_type, exc_value, traceback):
         if self.fstream:
