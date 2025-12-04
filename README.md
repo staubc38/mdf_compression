@@ -14,13 +14,13 @@ Therefore, these charactaristics are good for a specialized compressed file stru
   * Integer compression library with [python bindings](https://pypi.org/project/pyfastpfor/).\
   Later want to transition to: 
   https://github.com/powturbo/TurboPFor-Integer-Compression
-  * Timestamps can be highly compressed, order of >90% compression, by applying some transformations & using this compression library.\
+  * Timestamps can be highly compressed, order of >99% compression, by applying some transformations & using this compression library.\
   Further, integer data values can be directly compressed with this as well! (perhaps with some more transformations based on examination of the data...)
 * ZFP: https://github.com/LLNL/zfp
-  * Floating-point compression library with [python bindings](https://zfp.readthedocs.io/en/release0.5.5/python.html).
+  * (optionally) Lossy floating-point compression library with [python bindings](https://zfp.readthedocs.io/en/release0.5.5/python.html).
   * Floating-point values, in MDF file context, usually are sampled from physical measurement sources & therefore may appear "continuous".\
   Further, lossy compression of floating-point values is usually tolerable by the MDF data customer.\
-  These charactaristics seem well suited for ZFP algorithm, as per its [documentation](https://zfp.readthedocs.io/en/release0.5.5/overview.html).
+  These charactaristics seem well suited for ZFP, as per its [documentation](https://zfp.readthedocs.io/en/release0.5.5/overview.html).
 
 A python library "mdfc" is created, with some simple binary file specification, to apply these special compression algos to data from MDF files:
 In this simple example, 1d arrays of (random & non-random) ints & floats data are trialed for compression.\
