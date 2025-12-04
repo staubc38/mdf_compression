@@ -41,7 +41,7 @@ from ..utils.asammdf_util import map_times_to_timeaxis  # under .asammdf_util
 MAX_U64_VALUE = np.iinfo(np.uint64).max
 MAX_U32_VALUE = np.iinfo(np.uint32).max
 
-def compress_time(time_axis):
+def compress_time(time_axis, **kwargs):
     ''' 
     take the unified time_axis (should be a f64 array)
     apply & record transformations in order
@@ -51,6 +51,8 @@ def compress_time(time_axis):
         --> which is, the original unified time values (float array, units of seconds)
     so it may be generated & saved outside of this function
     '''
+    # testing applies_zlib
+    applies_zlib = kwargs.pop('applies_zlib', False)
     assert time_axis.dtype == np.float64, f"got time_axis with dtype {time_axis.dtype} but expected f64!"
     # capture ahead of time max value for error messaging
     maxval = time_axis.max()
@@ -100,6 +102,11 @@ def compress_time(time_axis):
     compressed, was_split = compress_u32(time_axis)
     # add placeholder to txs as the last thing
     txs.append(was_split)
+
+    # testing applies_zlib
+    if applies_zlib:
+        import zlib
+        compressed = zlib.compress(compressed, 9)
     return compressed, txs
 
 
@@ -107,7 +114,11 @@ def compress_time(time_axis):
 # function to decompress time, 
 #   although this should be the same as "general purpose decompress",
 #   it will be nice to have this explicitly called out maybe?
-def decompress_time(compressed: Union[bytes, npt.NDArray[np.uint32]], num_elem_expected, txs) -> np.ndarray:
+def decompress_time(compressed: Union[bytes, npt.NDArray[np.uint32]],
+    num_elem_expected,
+    txs,
+    applies_zlib=False
+    ) -> np.ndarray:
     '''
     with the compressed array loaded into memory, 
         or the bytes, which will be loaded into a 1d numpy array
@@ -119,6 +130,10 @@ def decompress_time(compressed: Union[bytes, npt.NDArray[np.uint32]], num_elem_e
     decompress & transform the array in reverse,
     to arrive at the original values
     '''
+    # testing applies_zlib
+    if applies_zlib:
+        import zlib
+        compressed = zlib.decompress(compressed)
     # steps: decompress_u32 -> iterate tx's in reverse
     # support the buffer if read directly
     if isinstance(compressed, bytes):
@@ -139,7 +154,7 @@ def decompress_time(compressed: Union[bytes, npt.NDArray[np.uint32]], num_elem_e
 
 # i guess we can have a function for "compress samples time..."
 # seems a bit shitty
-def compress_samples_time(signal_timestamps, mdf_compressor):
+def compress_samples_time(signal_timestamps, mdf_compressor, applies_zlib=False):
     ''' 
     from mdf Signal.timestamps (the array), and the compressor object
         which has the saved time_axis,
@@ -154,9 +169,14 @@ def compress_samples_time(signal_timestamps, mdf_compressor):
     # compress
     compressed_timelocs, was_split = compress_u32(timelocs)
     # TODO was_split is not implemented yet!
+
+    # testing applies_zlib
+    if applies_zlib:
+        import zlib
+        compressed_timelocs = zlib.compress(compressed_timelocs, 9)
     return compressed_timelocs  # a u32 array of just the bytes
 
-def decompress_samples_time(compressed, num_elem_expected, mdf_decompressor):
+def decompress_samples_time(compressed, num_elem_expected, mdf_decompressor, applies_zlib=False):
     '''
     from mdf decompressor object,
     which has the decompressed unified time axis
@@ -166,6 +186,10 @@ def decompress_samples_time(compressed, num_elem_expected, mdf_decompressor):
         which corresponds to the idx locs of time_axis,
     return those times slice
     '''
+    # testing applies_zlib
+    if applies_zlib:
+        import zlib
+        compressed = zlib.decompress(compressed)
     if isinstance(compressed, bytes):
         compressed = np.frombuffer(dtype=np.uint32, buffer=compressed)
     # checking should be done in decompress_u32 function
