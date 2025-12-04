@@ -9,7 +9,7 @@ Key charactaristics include:
   * When floating point values are captured directly, usually the source is from physical sensing devices (eg thermocouple, pressure transducer, ...), which measure continuous properties.\
   Therefore some loss in the value is usually tolerable (usually, +/- 0.01 degrees celsius or +/- 10 pascals is acceptable error)
 
-Therefore, these charactaristics are good for a specialized compressed file structure, & use of specialized compression algorithms, rather than "generic, off-the-shelf lossless compression":
+Therefore, these characteristics are good for a specialized compressed file structure, & use of specialized compression algorithms, rather than "generic, off-the-shelf lossless compression":
 * PFOR: https://github.com/fast-pack/FastPFOR
   * Integer compression library with [python bindings](https://pypi.org/project/pyfastpfor/).\
   Later want to transition to: 
@@ -42,7 +42,7 @@ These compression ratios, & decompression times, are observed:\
   |Ratio (U/C)|                  1.0|              1.23|                          7.2|
   ||
   |Decompression Time (ms)|       80|               453|                          132|
-* "Counter" data (32bit integers counting up from 0 to 9, repeating...),\
+* "Counter" data (32bit integers, counting up from 0 to 9, repeating...)
   |           |Uncompressed MDF|DEFLATE'd MDF|MDFC (this example repo)|
   |:----------|--------------------:|-----------------:|----------------------------:|
   |Size   (MB)|                   20|                 2|                          0.1|
