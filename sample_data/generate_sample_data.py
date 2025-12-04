@@ -1,5 +1,6 @@
 from pathlib import Path
 import os
+from io import BytesIO
 
 import asammdf, pandas as pd, numpy as np
 
@@ -145,25 +146,30 @@ def generate_sample_file(
     fname='sample_data.mf4',
     compression=False,
     
-    include_ints=True,
-    include_floats=True,
-    include_sines=True,
-    include_keepalives=True,
+    include_random_ints=False,
+    include_random_floats=False,
+    include_sine_waves=False,
+    include_keepalives=False,
     **kwargs
 ):
-    sample_mf4_fpa = os.path.join(
-        Path(__file__).parent,
-        fname
-    )
+    # support bytesio buffer
+    if isinstance(fname, BytesIO):
+        fname.seek(0)  # must be!
+    elif isinstance(fname, str):   
+        fname = os.path.join(
+            Path(__file__).parent,
+            fname
+        )
+    else: raise ValueError(f"Only support str or BytesIO for fname, but got {type(fname)}")
     # generate data groups
     groups = []
-    if include_ints:
+    if include_random_ints:
         g = generate_groups_ints(**kwargs)
         groups.extend(g)
-    if include_floats:
+    if include_random_floats:
         g = generate_groups_floats(**kwargs)
         groups.extend(g)
-    if include_sines:
+    if include_sine_waves:
         g = generate_groups_sines(**kwargs)
         groups.extend(g)
     if include_keepalives:
@@ -173,7 +179,7 @@ def generate_sample_file(
     with asammdf.MDF(version='4.10') as mfil:
         for df in groups:
             mfil.append(df)
-        mfil.save(sample_mf4_fpa, overwrite=True, compression=compression)
+        mfil.save(fname, overwrite=True, compression=compression)
 
 if __name__ == '__main__':
     generate_sample_file()
