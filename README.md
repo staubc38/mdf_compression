@@ -46,6 +46,8 @@ These compression ratios & decompression times are observed:\
   |Ratio (U/C)|                  1.0|              1.23|                      **7.2**|
   ||
   |Decompression Time (ms)|   **80**|               453|                          132|
+
+  (primarily attributable to lossy fp compression)
 * "Counter" data (32bit integers, counting up from 0 to 9, repeating...)\
   (Data size: ~3M total 32bit int "samples", and ~730k total 64bit "timestamps")
   |Uncompressed<br/>"Data size": 17 MB|Uncompressed MDF|DEFLATE'd MDF|MDFC (this example repo)|
@@ -63,8 +65,16 @@ These compression ratios & decompression times are observed:\
   |Ratio (U/C)|                  1.0|               1.7|                       **11**|
   ||
   |Decompression Time (ms)|    5,000|            16,000|                    **4,000**|
+* "Very long recording time", ~24 hours, of just "Counter" data\
+   (Data size: ~70M total 32bit int "samples", and ~17M total 64bit "timestamps")
+  |           |Uncompressed MDF|DEFLATE'd MDF|MDFC (this example repo)|
+  |:----------|--------------------:|-----------------:|----------------------------:|
+  |Size   (MB)|                  443|                48|                      **0.5**|
+  |Ratio (U/C)|                  1.0|               9.3|                      **970**|
+  ||
+  |Decompression Time (ms)|    1,500|             2,100|                      **930**|
   
-
+  (primarily attributable to timestamps transformations & compression, having a larger effect with "longer recording times")
 
 
 ### Future works:
