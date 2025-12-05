@@ -1,6 +1,7 @@
 # MDF Compression
 Studies &amp; trials on compressing data from ETAS (/ASAM) MDF files.
 
+## Description
 A MDF ([current version "MF4"](https://www.asam.net/standards/detail/mdf/wiki/)) file represents a collection of "time-series data", which are recordings from various sources that always have an associated "timestamp" with each record.\
 Key charactaristics include:
 * Collection of groups of "channels", each of which can be collected to an array of records with shape (m, ...), usually just 1-dimensional. Each record has a complimentary timestamp, therefore these "timestamps" can be collected & associated with each group of channels, with shape (m, ), always 1-dimensional.
@@ -11,6 +12,7 @@ Key charactaristics include:
   * When floating point values are captured directly, usually the source is from physical sensing devices (eg thermocouple, pressure transducer, ...), which measure continuous properties.\
   Therefore some loss in the value is usually tolerable (usually, +/- 0.01 degrees celsius or +/- 10 pascals is acceptable error)
 
+## Compression libraries used
 Therefore, these characteristics are good for a specialized compressed file structure, & use of specialized compression algorithms, rather than "generic, off-the-shelf lossless compression":
 * PFOR: https://github.com/fast-pack/FastPFOR
   * Integer compression library with [python bindings](https://pypi.org/project/pyfastpfor/).\
@@ -24,6 +26,7 @@ Therefore, these characteristics are good for a specialized compressed file stru
   Further, lossy compression of floating-point values is usually tolerable by the MDF data customer.\
   These charactaristics seem well suited for ZFP, as per its [documentation](https://zfp.readthedocs.io/en/release0.5.5/overview.html).
 
+## Examples results
 A python library "mdfc" (**MDF C**ompressed) is created, with some simple file structure, to apply these special compression algos to MDF files. In this simple example, 1d arrays of (random & non-random) ints & floats data are trialed for compression.\
 Check out the notebook ./examples/test_mdfc.ipynb\
 These compression ratios & decompression times are observed:\
