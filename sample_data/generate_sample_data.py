@@ -6,14 +6,15 @@ import asammdf, pandas as pd, numpy as np
 
 def generate_groups_sines(
     *a,
+
     time_s=3600, 
     sample_intervals_ms = (1000, 500, 250, 100),
     channels_per_interval=200,
     channels_per_group=4,
 
-    sfreq = 1,
-    samp = 1e10,
+    samp = 10,
     jitter = 1e-2,
+
     **kwargs
 ):
     '''
@@ -31,7 +32,7 @@ def generate_groups_sines(
             data = {
                 f'sine_{sample_interval}ms_{n+counter}': 
                 (
-                    np.sin(2*np.pi*index/sample_interval) +
+                    np.sin(2*np.pi*index/sample_interval)*samp +
                     ((np.random.rand(len(index))*2*jitter)-jitter)
                 )
                 for n in range(c)
@@ -46,6 +47,7 @@ def generate_groups_sines(
 
 def generate_groups_floats(
     *a,
+
     time_s=3600, 
     sample_intervals_ms = (1000, 500, 250, 100),
     channels_per_interval=200,
@@ -53,6 +55,7 @@ def generate_groups_floats(
 
     flo=-1e10,
     fhi=1e10,
+
     **kwargs
 ):
     counter = 1  # oof :(
@@ -72,6 +75,7 @@ def generate_groups_floats(
 
 def generate_groups_ints(
     *a,
+
     time_s=3600, 
     sample_intervals_ms = (1000, 500, 250, 100),
     channels_per_interval=200,
@@ -79,8 +83,6 @@ def generate_groups_ints(
 
     ilo=-1024,
     ihi=1024,
-
-    include_keepalive=False,
 
     **kwargs
 ):
@@ -111,15 +113,11 @@ def generate_groups_ints(
 #   images?
 def generate_groups_keepalives(
     *a,
+
     time_s=3600, 
     sample_intervals_ms = (1000, 500, 250, 100),
     channels_per_interval=200,
     channels_per_group=4,
-
-    ilo=-1024,
-    ihi=1024,
-
-    include_keepalive=False,
 
     **kwargs
 ):

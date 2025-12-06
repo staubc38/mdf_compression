@@ -53,5 +53,6 @@ def compress_f(arr, atol=-1):
     #   TODO ^^
 
     # it is already returned as bytes
+    # print(f'compress_f with atol = {atol}')
     comp_buffer = compress_numpy(arr, tolerance=atol)
     return (comp_buffer, bitwise_split_required)
