@@ -79,6 +79,18 @@ These compression ratios & decompression times are observed:\
   
   (primarily attributable to timestamps transformations & compression, having a larger effect with "longer recording times")
 
+## Some notes...
+* Noise in the timestamps, eg +/-(0.1% * 100ms --> 10us) jitter, causes the timestamps compression to be not as good.\
+  eg, [0, 0.01, 0.02, 0.03] becomes [0, 1, 1, 1] which compresses very well.\
+  but [0, 0.01005, 0.01995, 0.03005] becomes [0, 1005, 990, 1010] which compresses worse with FastPFOR.\
+  On testing, seems to still be somewhat comprable with zlib compression, and stil faster decompression. Therefore, not catastrophic...\ 
+  Although for best results, this needs more thought, or perhaps the TurboPFOR addresses it...?
+  * **Parameter "timestamps precision" can be introduced to allow "### ms" or "us" or etc...\
+    which doesnt solve the fundamental issue, but this precision may not be important to the user**
+  * Perhaps a hybrid approach can be taken...\
+    integer differential at the microsecond level, and another compression for just nanoseconds
+    * On simple test, it does have some benefit... 32 MB vs 50MB default :) for 1hr sampling with (0.5% * 100ms) jitter \
+      Therefore we should explore this idea a bit more :)
 
 ### Future works:
 Want to explore...
