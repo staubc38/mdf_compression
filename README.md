@@ -85,6 +85,8 @@ Want to explore...
 * FPC (lossless 1d float compression):
   * https://userweb.cs.txstate.edu/~burtscher/research/FPC
   * https://github.com/spenczar/fpc  (for Go)
+* LC (another lossy float compression):
+  * https://github.com/burtscher/LC-framework/
 * BLOSC (perhaps for non-standard binary signals?):
   * https://www.blosc.org/
         
