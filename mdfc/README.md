@@ -1,5 +1,23 @@
 A description about the structure of a MDFC file, current version, is written here.
 
+# Strategy:
+
+1. Timestamps are aggregated from each group of signals into one "unified time axis".\
+   It is compresssed & serialized:
+   * Scaled up to be "whole numbers" (usually valid once reaching scale of nanoseconds)
+   * Calculate the differential (list is ascending in time)
+   * Compressed using FastPFOR integer compression library
+     * Double-compression is applied using zlib. This approach is still faster to decopmress vs Deflate (standard)!
+2. For each signal...
+   * Identify the timestamp indices from "unified time axis", \
+      differentiate & compress those "timestamps indices"
+   * Unravel the "samples" if required (TBD not implemented yet)
+   * Apply reversible transformations to reduce compressed size (TBD not implemented yet)
+   * Compress using one of the chosen compression libraries (FastPFOR, zfp, etc...)
+   * Accumulate metadata required for decompression in memory
+3. Write "compression metadata", indicate position & length in header
+4. Write "metadata required for MDF reconstruction" (TBD not implemented yet)
+
 # MDFC V1 File Structure
 
 Header: 24 bytes
