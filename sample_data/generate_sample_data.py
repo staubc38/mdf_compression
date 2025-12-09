@@ -14,6 +14,7 @@ def generate_groups_sines(
 
     samp = 10,
     jitter = 1e-2,
+    jitter_time=False,
 
     **kwargs
 ):
@@ -27,19 +28,32 @@ def generate_groups_sines(
             r = int(time_s*(1000/sample_interval))
             c = channels_per_group
 
-            index = np.array(range(r))*(time_s/r)
-
+            time = np.array(range(r))*(time_s/r)
+            if jitter_time:
+                if jitter_time is True: jitter_time = 0.05
+                # +/- 5% jitter
+                jtime = (
+                    ((np.random.randint(
+                        0, 200,
+                        size=len(time)
+                    ) - 100)/100)
+                     * (sample_interval*jitter_time/1000)
+                )
+                time += jtime
+                if time[0] < 0: time -= time[0]
+                elif time[0] > 0: time += time[0]
+                else: pass
             data = {
                 f'sine_{sample_interval}ms_{n+counter}': 
                 (
-                    np.sin(2*np.pi*index/sample_interval)*samp +
-                    ((np.random.rand(len(index))*2*jitter)-jitter)
+                    np.sin(2*np.pi*time/sample_interval)*samp +
+                    ((np.random.rand(len(time))*2*jitter)-jitter)
                 )
                 for n in range(c)
             }
             df = pd.DataFrame(
                 data=data,
-                index=index,
+                index=time,
             )
             groups.append(df)
             counter += c
@@ -55,6 +69,7 @@ def generate_groups_floats(
 
     flo=-1e10,
     fhi=1e10,
+    jitter_time=False,
 
     **kwargs
 ):
@@ -64,9 +79,24 @@ def generate_groups_floats(
         for g in range(int(channels_per_interval/channels_per_group)):
             r = int(time_s*(1000/sample_interval))
             c = channels_per_group
+
+            if jitter_time:
+                if jitter_time is True: jitter_time = 0.05
+                # +/- 5% jitter
+                jtime = (
+                    ((np.random.randint(
+                        0, 200,
+                        size=len(time)
+                    ) - 100)/100)
+                     * (sample_interval*jitter_time/1000)
+                )
+                time += jtime
+                if time[0] < 0: time -= time[0]
+                elif time[0] > 0: time += time[0]
+                else: pass
             df = pd.DataFrame(
                 data=np.random.uniform(low=flo, high=fhi, size=(r, c)),
-                index=np.array(range(r))*(time_s/r),
+                index=time,
                 columns=[f'float_{sample_interval}ms_{n+counter}' for n in range(c)]
             )
             groups.append(df)
@@ -83,6 +113,7 @@ def generate_groups_ints(
 
     ilo=-1024,
     ihi=1024,
+    jitter_time=False,
 
     **kwargs
 ):
@@ -99,9 +130,25 @@ def generate_groups_ints(
         for g in range(int(channels_per_interval/channels_per_group)):
             r = int(time_s*(1000/sample_interval))
             c = channels_per_group
+
+            time = np.array(range(r))*(time_s/r)
+            if jitter_time:
+                if jitter_time is True: jitter_time = 0.05
+                # +/- 5% jitter
+                jtime = (
+                    ((np.random.randint(
+                        0, 200,
+                        size=len(time)
+                    ) - 100)/100)
+                     * (sample_interval*jitter_time/1000)
+                )
+                time += jtime
+                if time[0] < 0: time -= time[0]
+                elif time[0] > 0: time += time[0]
+                else: pass
             df = pd.DataFrame(
                 data=np.random.randint(low=ilo, high=ihi, size=(r, c)),
-                index=np.array(range(r))*(time_s/r),
+                index=time,
                 columns=[f'int_{sample_interval}ms_{n+counter}' for n in range(c)]
             )
             groups.append(df)
@@ -118,6 +165,7 @@ def generate_groups_keepalives(
     sample_intervals_ms = (1000, 500, 250, 100),
     channels_per_interval=200,
     channels_per_group=4,
+    jitter_time=False,
 
     **kwargs
 ):
@@ -130,9 +178,25 @@ def generate_groups_keepalives(
         for g in range(int(channels_per_interval/channels_per_group)):
             r = int(time_s*(1000/sample_interval))
             c = channels_per_group
+
+            time = np.array(range(r))*(time_s/r)
+            if jitter_time:
+                if jitter_time is True: jitter_time = 0.05
+                # +/- 5% jitter
+                jtime = (
+                    ((np.random.randint(
+                        0, 200,
+                        size=len(time)
+                    ) - 100)/100)
+                     * (sample_interval*jitter_time/1000)
+                )
+                time += jtime
+                if time[0] < 0: time -= time[0]
+                elif time[0] > 0: time += time[0]
+                else: pass
             df = pd.DataFrame(
                 data=np.ones(shape=(r,c)),
-                index=np.array(range(r))*(time_s/r),
+                index=time,
                 columns=[f'counter_{sample_interval}ms_{n+counter}' for n in range(c)]
             )
             df = (df.cumsum()%10).astype(np.int32)
