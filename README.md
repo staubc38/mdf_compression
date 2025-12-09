@@ -91,6 +91,8 @@ These compression ratios & decompression times are observed:\
     integer differential at the microsecond level, and another compression for just nanoseconds
     * On simple test, it does have some benefit... 32 MB vs 50MB default :) for 1hr sampling with (0.5% * 100ms) jitter \
       Therefore we should explore this idea a bit more :)
+* Real-world data samples:
+  * https://zenodo.org/records/820576
 
 ### Future works:
 Want to explore...
