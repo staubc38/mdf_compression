@@ -163,7 +163,12 @@ class MDFDecompressor(object):
         # i guess we can just read the whole thing...
         compressed = self._read_bytes(self.time_metadata[1], self.time_metadata[0])
         # decompress it!
-        self.time_axis = decompress_time(compressed, num_elements_expected, txs, applies_zlib=True)
+        self.time_axis = decompress_time(
+            compressed, 
+            num_elements_expected, 
+            txs, 
+            applies_zlib=True
+        )
         return True
 
     def decompress_all_signals(self):
@@ -215,7 +220,12 @@ class MDFDecompressor(object):
 
         # samples timestamps block is written first
         compressed = self._read_bytes(csize, signal_start)
-        decompressed = decompress_samples_time(compressed, signal_shape[0], self, applies_zlib=applies_zlib)
+        decompressed = decompress_samples_time(
+            compressed, 
+            signal_shape[0], 
+            self, 
+            applies_zlib=True,  # always done presently
+        )
         # i think a copy is required, 
         #   since later we will use a single buffer for decomp & txing
         #   TODO can this go underneath the decompression function?
@@ -224,7 +234,10 @@ class MDFDecompressor(object):
         # samples block is written directly after timestamps
         csize = self.metadata[signal_name]['csize']
         compressed = self._read_bytes(csize)
-        decompressed = decompress_samples(compressed, self.metadata[signal_name])  # signal_dtype, signal_shape, self.metadata[signal_name]['txs'])
+        decompressed = decompress_samples(
+            compressed, 
+            self.metadata[signal_name]
+        )  # signal_dtype, signal_shape, self.metadata[signal_name]['txs'])
         # i think a copy is required, 
         #   since later we will use a single buffer for decomp & txing
         #   TODO can this go underneath the decompression function?

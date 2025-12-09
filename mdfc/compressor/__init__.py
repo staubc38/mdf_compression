@@ -28,6 +28,7 @@ from ..transform import (
 from ..utils import (
     unify_timestamps
 )
+from ..transform.samples import _should_apply_zlib
 
 
 # TODO this should go elsewhere
@@ -253,7 +254,7 @@ class MDFCompressor(object):
         significands: int = -1,
         tolerance: float = -1,
         minimum_tolerance: float = -1,
-        applies_zlib: bool = True,
+        applies_zlib: Optional[bool] = None,
     ) -> bool:
         '''
         for all channels in the mdf file,
@@ -330,7 +331,7 @@ class MDFCompressor(object):
         significands: int = -1,
         tolerance: float = -1,
         minimum_tolerance: float = -1,
-        applies_zlib: bool = True,
+        applies_zlib: Optional[bool] = None,
     ) -> bool:
         '''
         compress a MDF.signal.Signal object 
@@ -450,6 +451,10 @@ class MDFCompressor(object):
         dtype = signal.samples.dtype.name
         self.metadata[signal_name]['dtype'] = dtype
         # should we double-compress this signal?
+        #   TODO this should go under compress_samples
+        #   but presently its required to record in metadata :(
+        if applies_zlib is None:
+            applies_zlib = _should_apply_zlib(dtype)
         self.metadata[signal_name]['applies_zlib'] = applies_zlib
 
         # begin compression for signal timestamps
@@ -457,7 +462,8 @@ class MDFCompressor(object):
         compressed_time = compress_samples_time(
             signal.timestamps, 
             self, 
-            applies_zlib=applies_zlib,
+            # always double-compress timestamps
+            applies_zlib=True,
         ) 
         start_pos = self.curr_offset
         self._write_bytes(compressed_time)  # it increments self.curr_offset
