@@ -69,6 +69,21 @@ MAX_I32_VALUE = np.iinfo(np.int32).max
 MIN_I32_VALUE = np.iinfo(np.int32).min
 
 
+def _should_apply_zlib(dtype_name):
+    '''
+    judge if double-compression should be applied to the result
+    presently this helps with the CR of PFOR compression
+        and doesnt reduce time a lot
+    but it doesnt help much after lossy (or lossless) fp comp
+    therefore the default should not be done there
+    '''
+    res = True
+    if 'int' in dtype_name: res = True
+    elif 'float' in dtype_name: res = False
+    else: raise ValueError(f"cannot judge dtype name {dtype_name} in _should_apply_zlib!")  # return True  # hmm
+    # print(f'{dtype_name} becomes {res}')
+    return res
+
 # TODO these should be moved into the individual compression functions maybe?
 #   or at least, not here... too much reading
 
@@ -216,22 +231,22 @@ def _compress_float(arr, *a, tolerance=-1, significands=-1, minimum_tolerance=No
     return compressed, txs
 
 
-def compress_samples(signal, dtype, **kwargs):
+def compress_samples(
+    signal, dtype, 
+    applies_zlib: Optional[bool] = None,
+    **kwargs
+):
     '''
     based on the dtype of the samples, 
-        ~~which is derived based on looking at the metadata in the object~~
         the name of which is passed as dtype argument,
     compress the .samples of it using the appropriate compression algo
 
     which is
         pfor for ints,
         zfp for floats,
-
-    TODO float is not implemented yet
-        "tolerance" input can be used in that case 
+            which has some kwargs passed through
+            for lossy options (tolerance & etc)
     '''
-    # testing -> applies_zlib
-    applies_zlib = kwargs.pop('applies_zlib', False)
 
     if not (dtype in VALID_DTYPE_NAMES):
         raise ValueError(f"dtype {dtype} not recognized, please use one of ({', '.join(VALID_DTYPE_NAMES)})")
@@ -244,10 +259,9 @@ def compress_samples(signal, dtype, **kwargs):
     else:
         raise ValueError(f"Unrecognized dtype {dtype} in metadata...")
 
-    
     if applies_zlib:
-        import zlib
-        compressed = zlib.compress(compressed, 9)
+        from . import _compress_double_compress
+        compressed = _compress_double_compress(compressed)
     return compressed, txs
 
 def decompress_samples(compressed, metadata):  # dtype, shape_expected, txs, ):
@@ -278,11 +292,9 @@ def decompress_samples(compressed, metadata):  # dtype, shape_expected, txs, ):
     for n in shape_expected[1:]:
         num_elem_expected *= n
 
-    # apply zlib if flagged
     if applies_zlib:
-        import zlib
-        compressed = zlib.decompress(compressed)
-
+        from . import _decompress_double_compress
+        compressed = _decompress_double_compress(compressed)
     # TODO this works presently... maybe not when we use ASAM/MDF dtype names
     # print(dtype)
     if 'int' in dtype:

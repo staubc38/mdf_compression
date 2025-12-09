@@ -41,7 +41,7 @@ from ..utils.asammdf_util import map_times_to_timeaxis  # under .asammdf_util
 MAX_U64_VALUE = np.iinfo(np.uint64).max
 MAX_U32_VALUE = np.iinfo(np.uint32).max
 
-def compress_time(time_axis, applies_zlib=True, **kwargs):
+def compress_time(time_axis, applies_zlib=True):
     ''' 
     take the unified time_axis (should be a f64 array)
     apply & record transformations in order
@@ -51,8 +51,6 @@ def compress_time(time_axis, applies_zlib=True, **kwargs):
         --> which is, the original unified time values (float array, units of seconds)
     so it may be generated & saved outside of this function
     '''
-    # testing applies_zlib
-    # applies_zlib = kwargs.pop('applies_zlib', False)
     assert time_axis.dtype == np.float64, f"got time_axis with dtype {time_axis.dtype} but expected f64!"
     # capture ahead of time max value for error messaging
     maxval = time_axis.max()
@@ -65,17 +63,11 @@ def compress_time(time_axis, applies_zlib=True, **kwargs):
 
     # scale up until reaching whole numbers
     #   or we exceed uint64 max range
-    #   TODO we could go to uint128 max range but i dont want to yet
+    #   TODO decide if uint128 should be allowed, i dont think so though
     scale = 1
     while not np.allclose(time_axis, np.round(time_axis)):
         scale *= 10
         time_axis = scale_up(time_axis, 10)  # just *=
-        # this is not true...?
-        #   since we always only store the differential
-        #   and can calculate with 64bits
-        # ah, no it is true, because we are going to downcast to uint
-        #   maybe it could be u128... meh... 64bit nanoseconds is 500 years
-        #   should be OK
         # TODO this should be sorted so we can just check the last value
         if time_axis.max() > MAX_U64_VALUE:
             # enhancement would be required
@@ -90,7 +82,9 @@ def compress_time(time_axis, applies_zlib=True, **kwargs):
     time_axis = f64_to_u64(time_axis)
     txs.append((TX_ENUMs[f64_to_u64], ))
 
-    # differentiate --> this implicitly casts u64 to f64 :'( big sad
+    # differentiate (and preserve original dtype u64)
+    #   that is acceptable in this context since the list is ascending
+    #   this can be made more clear when we move stuff into cpp
     time_axis = diff(time_axis)
     txs.append((TX_ENUMs[diff], ))
 
@@ -102,6 +96,7 @@ def compress_time(time_axis, applies_zlib=True, **kwargs):
             "Enhancement is required :'("
         )
     # else we can downcast to u32
+    #   this will not be required when using current PFOR version
     time_axis = u64_to_u32(time_axis)
     txs.append((TX_ENUMs[u64_to_u32], ))
     
@@ -111,10 +106,9 @@ def compress_time(time_axis, applies_zlib=True, **kwargs):
     # add placeholder to txs as the last thing
     txs.append(was_split)
 
-    # testing applies_zlib
     if applies_zlib:
-        import zlib
-        compressed = zlib.compress(compressed, 9)
+        from . import _compress_double_compress
+        compressed = _compress_double_compress(compressed)
     return compressed, txs
 
 
@@ -140,8 +134,8 @@ def decompress_time(compressed: Union[bytes, npt.NDArray[np.uint32]],
     '''
     # testing applies_zlib
     if applies_zlib:
-        import zlib
-        compressed = zlib.decompress(compressed)
+        from . import _decompress_double_compress
+        compressed = _decompress_double_compress(compressed)
     # steps: decompress_u32 -> iterate tx's in reverse
     # support the buffer if read directly
     if isinstance(compressed, bytes):
@@ -180,8 +174,8 @@ def compress_samples_time(signal_timestamps, mdf_compressor, applies_zlib=False)
 
     # testing applies_zlib
     if applies_zlib:
-        import zlib
-        compressed_timelocs = zlib.compress(compressed_timelocs, 9)
+        from . import _compress_double_compress
+        compressed_timelocs = _compress_double_compress(compressed_timelocs)
     return compressed_timelocs  # a u32 array of just the bytes
 
 def decompress_samples_time(compressed, num_elem_expected, mdf_decompressor, applies_zlib=False):
@@ -196,8 +190,8 @@ def decompress_samples_time(compressed, num_elem_expected, mdf_decompressor, app
     '''
     # testing applies_zlib
     if applies_zlib:
-        import zlib
-        compressed = zlib.decompress(compressed)
+        from . import _decompress_double_compress
+        compressed = _decompress_double_compress(compressed)
     if isinstance(compressed, bytes):
         compressed = np.frombuffer(dtype=np.uint32, buffer=compressed)
     # checking should be done in decompress_u32 function

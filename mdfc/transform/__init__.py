@@ -92,7 +92,7 @@ for k, vs in TRANSFORMATIONS.items():
     for v in vs:
         TX_ENUMs[v] = k
 
-TX_COMPRESS = {key: val[0] for key, val in TRANSFORMATIONS.items()}
+TX_COMPRESS   = {key: val[0] for key, val in TRANSFORMATIONS.items()}
 TX_DECOMPRESS = {key: val[1] for key, val in TRANSFORMATIONS.items()}
 
 
@@ -104,3 +104,20 @@ from .time import (
 from .samples import (
     compress_samples, decompress_samples
 )
+
+# double-compress wrapper
+#   i think this probably just catches run-length coding...
+#   since in the timestamps compression, 
+#       the interval can still be consistent, 
+#       especially if removing jitter
+#   it doesnt help much with fp compression
+def _compress_double_compress(bts):
+    import zlib
+    return zlib.compress(bts, 9)
+    # import zstd
+    # return zstd.compress(bts, 20)
+def _decompress_double_compress(bts):
+    import zlib
+    return zlib.decompress(bts)
+    # import zstd
+    # return zstd.decompress(bts)
