@@ -53,6 +53,7 @@ class MDFCompressor(object):
     '''
     def __init__(self, 
         name: Optional[Union[str, Path, BytesIO]] = None, 
+        time_resolution: Optional[str] = None,
         overwrite: bool = False,
         close_file_on_exit: bool = True
     ):
@@ -88,6 +89,7 @@ class MDFCompressor(object):
             self.name = BytesIO()
             self.open_stream_func = lambda: self.name
 
+        self.time_resolution = time_resolution
         # the approach is to accumulate compression metadata
         #   and MDF metadata
         # in this MDFCompressor object,
@@ -193,7 +195,8 @@ class MDFCompressor(object):
     #   from the MDF file object
     def unify_compress_time(
         self, 
-        mdf_file: MDF
+        mdf_file: MDF,
+        time_resolution: Optional[str] = None,
     ) -> bool:
         '''
         A MDF file contains Signals which have numeric timestamps.
@@ -222,6 +225,10 @@ class MDFCompressor(object):
                 "Only one 'unified time axis' may be collected, only once. "
                 "Please only call this function once :)"
             )
+        # update kwarg if passed
+        if not (time_resolution is None):
+            self.time_resolution = time_resolution
+
         # expect a MDF file --> create a unified time axis from each signal of it
         #   bit of an inefficiency to MDF.select(...) twice... but its OK for now
         self.time_axis = unify_timestamps(mdf_file)  # likely a np float64
@@ -237,7 +244,8 @@ class MDFCompressor(object):
         # transform & compress
         compressed_time, txs = compress_time(
             self.time_axis,
-            applies_zlib=True
+            applies_zlib=True,
+            time_resolution=self.time_resolution,
         )
         self.time_metadata = (self.curr_offset, len(compressed_time), decompressed_shape, txs)
         # write to file & save a flag so we dont do it again!
@@ -255,6 +263,7 @@ class MDFCompressor(object):
         tolerance: float = -1,
         minimum_tolerance: float = -1,
         applies_zlib: Optional[bool] = None,
+        time_resolution: Optional[str] = None,
     ) -> bool:
         '''
         for all channels in the mdf file,
@@ -291,7 +300,7 @@ class MDFCompressor(object):
                 )
         # set timeaxis if not already
         if not self._has_set_time:
-            self.unify_compress_time(mdf_file)
+            self.unify_compress_time(mdf_file, time_resolution=time_resolution)
         # compress all signals
         sigs = [
             sig_name # (sig_name, *chan_info) 

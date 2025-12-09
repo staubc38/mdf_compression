@@ -20,7 +20,7 @@ from typing import Union, Optional
 import numpy as np
 import numpy.typing as npt
 
-from . import (
+from .. import (
     scale_up,
     f64_to_u64,
     diff,
@@ -30,18 +30,18 @@ from . import (
     TX_COMPRESS,
     TX_DECOMPRESS,
 )
-from ..utils.compress import (
+from ...utils.compress import (
     compress_u32
 )
-from ..utils.decompress import (
+from ...utils.decompress import (
     decompress_u32
 )
-from ..utils.asammdf_util import map_times_to_timeaxis  # under .asammdf_util
+from ...utils.asammdf_util import map_times_to_timeaxis  # under .asammdf_util
 
 MAX_U64_VALUE = np.iinfo(np.uint64).max
 MAX_U32_VALUE = np.iinfo(np.uint32).max
 
-def compress_time(time_axis, applies_zlib=True):
+def compress_time(time_axis, applies_zlib=True, time_resolution=None):
     ''' 
     take the unified time_axis (should be a f64 array)
     apply & record transformations in order
@@ -64,7 +64,10 @@ def compress_time(time_axis, applies_zlib=True):
     # scale up until reaching whole numbers
     #   or we exceed uint64 max range
     #   TODO decide if uint128 should be allowed, i dont think so though
-    scale = 1
+    # scale = 1
+    # testing :)  rounding to some time resolution
+    from . import round_and_convert_timeunit  # circular import
+    time_axis, scale = round_and_convert_timeunit(time_axis, time_resolution=time_resolution)
     while not np.allclose(time_axis, np.round(time_axis)):
         scale *= 10
         time_axis = scale_up(time_axis, 10)  # just *=
@@ -107,7 +110,7 @@ def compress_time(time_axis, applies_zlib=True):
     txs.append(was_split)
 
     if applies_zlib:
-        from . import _compress_double_compress
+        from .. import _compress_double_compress
         compressed = _compress_double_compress(compressed)
     return compressed, txs
 
@@ -134,7 +137,7 @@ def decompress_time(compressed: Union[bytes, npt.NDArray[np.uint32]],
     '''
     # testing applies_zlib
     if applies_zlib:
-        from . import _decompress_double_compress
+        from .. import _decompress_double_compress
         compressed = _decompress_double_compress(compressed)
     # steps: decompress_u32 -> iterate tx's in reverse
     # support the buffer if read directly
@@ -174,7 +177,7 @@ def compress_samples_time(signal_timestamps, mdf_compressor, applies_zlib=False)
 
     # testing applies_zlib
     if applies_zlib:
-        from . import _compress_double_compress
+        from .. import _compress_double_compress
         compressed_timelocs = _compress_double_compress(compressed_timelocs)
     return compressed_timelocs  # a u32 array of just the bytes
 
@@ -190,7 +193,7 @@ def decompress_samples_time(compressed, num_elem_expected, mdf_decompressor, app
     '''
     # testing applies_zlib
     if applies_zlib:
-        from . import _decompress_double_compress
+        from .. import _decompress_double_compress
         compressed = _decompress_double_compress(compressed)
     if isinstance(compressed, bytes):
         compressed = np.frombuffer(dtype=np.uint32, buffer=compressed)
