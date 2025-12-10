@@ -219,11 +219,17 @@ class MDFDecompressor(object):
         applies_zlib = self.metadata[signal_name]['applies_zlib']
 
         # samples timestamps block is written first
-        compressed = self._read_bytes(csize, signal_start)
+        # new spec, 5 bytes are introduced to save offset_ivalue and zigzag_flag
+        # but the start is at the start of those 5
+        offset_value = int.from_bytes(self._read_bytes(4, signal_start), signed=True)
+        zz_flag = bool.from_bytes(self._read_bytes(1))
+        compressed = self._read_bytes(csize)
         decompressed = decompress_samples_time(
             compressed, 
             signal_shape[0], 
             self, 
+            offset_value=offset_value,
+            zz_flag=zz_flag,
             applies_zlib=True,  # always done presently
         )
         # i think a copy is required, 

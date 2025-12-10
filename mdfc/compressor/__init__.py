@@ -468,18 +468,26 @@ class MDFCompressor(object):
 
         # begin compression for signal timestamps
         # only write metadata this if we succeed compression & writing
-        compressed_time = compress_samples_time(
+        (
+            compressed_time,
+            offset_ivalue,
+            zigzag_flag
+        ) = compress_samples_time(
             signal.timestamps, 
             self, 
             # always double-compress timestamps
             applies_zlib=True,
         ) 
         start_pos = self.curr_offset
-        self._write_bytes(compressed_time)  # it increments self.curr_offset
         self.metadata[signal_name]['start'] = start_pos
         self.metadata[signal_name]['csize_t'] = len(compressed_time)
-        
-        
+        # introduce 5 bytes to save offset_ivalue and zigzag_flag
+        offset_ivalue = int(offset_ivalue).to_bytes(4, signed=True)
+        zigzag_flag = bool(zigzag_flag).to_bytes(1)
+        self._write_bytes(offset_ivalue)
+        self._write_bytes(zigzag_flag)
+        self._write_bytes(compressed_time)  # it increments self.curr_offset
+
         # begin compression for signal samples
         # only write metadata if we succeed compression & writing
         compressed, txs = compress_samples(

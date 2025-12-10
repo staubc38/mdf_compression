@@ -33,7 +33,6 @@ import numpy.typing as npt
 
 from . import (
     zigzag_encode,
-    zigzag_decode,
     u64_to_u32,
     i64_to_i32,
     i32_to_u32,

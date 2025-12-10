@@ -51,6 +51,7 @@ def compress_time(time_axis, applies_zlib=True, time_resolution=None):
         --> which is, the original unified time values (float array, units of seconds)
     so it may be generated & saved outside of this function
     '''
+    print('begin compress_time with scaleup method')
     assert time_axis.dtype == np.float64, f"got time_axis with dtype {time_axis.dtype} but expected f64!"
     # capture ahead of time max value for error messaging
     maxval = time_axis.max()
@@ -64,23 +65,24 @@ def compress_time(time_axis, applies_zlib=True, time_resolution=None):
     # scale up until reaching whole numbers
     #   or we exceed uint64 max range
     #   TODO decide if uint128 should be allowed, i dont think so though
-    
-    # testing :)  rounding to some time resolution
     if not (time_resolution is None):
         from . import round_and_convert_timeunit  # circular import
         time_axis, scale = round_and_convert_timeunit(time_axis, time_resolution=time_resolution)
     else:
+        # TODO decide if this is OK or NOK for default behavior
+        #   it might chop off some nanoseconds
+        #   if the scale is 10ms +/- 10ns jitter
         scale = 1
         while not np.allclose(time_axis, np.round(time_axis)):
             scale *= 10
             time_axis = scale_up(time_axis, 10)  # just *=
-            # TODO this should be sorted so we can just check the last value
-            if time_axis.max() > MAX_U64_VALUE:
-                # enhancement would be required
-                raise ValueError(
-                    "File has timestamps that are too large & precise to be compressed... "
-                    f"scaleup factor needed to be {scale}, but file max timestamp of {maxval} "
-                    "would be out of range of uint64!")
+    # TODO this should be sorted so we can just check the last value
+    if time_axis.max() > MAX_U64_VALUE:
+        # enhancement would be required
+        raise ValueError(
+            "File has timestamps that are too large & precise to be compressed... "
+            f"scaleup factor needed to be {scale}, but file max timestamp of {maxval} "
+            "would be out of range of uint64!")
     # record the transformation
     txs.append((TX_ENUMs[scale_up], scale))
 
@@ -96,7 +98,7 @@ def compress_time(time_axis, applies_zlib=True, time_resolution=None):
 
     # ensure we dont exceed MAX_U32_VALUE in the differentiated axis
     # if so, it can be downcast & compressed
-    if time_axis.max() > MAX_U32_VALUE:
+    if time_axis.max() >= MAX_U32_VALUE:
         raise ValueError(
             "File has differential timestamps that exceed uint32 max value... "
             "Enhancement is required :'("
@@ -106,7 +108,7 @@ def compress_time(time_axis, applies_zlib=True, time_resolution=None):
     time_axis = u64_to_u32(time_axis)
     txs.append((TX_ENUMs[u64_to_u32], ))
     
-    # debugging, want to know how many unique samples there are
+    # debugging, want to know how many unique timestamps there are
     # unqs, counts = np.unique(time_axis, return_counts=True)
     # print(f'DEBUG: {len(unqs)} unique elements after rounding')
     # compress!  and indicate if it was required to split 64 into 2*32
@@ -118,6 +120,7 @@ def compress_time(time_axis, applies_zlib=True, time_resolution=None):
     if applies_zlib:
         from .. import _compress_double_compress
         compressed = _compress_double_compress(compressed)
+    print(f'scaleup method csize axis {len(compressed)}')
     return compressed, txs
 
 

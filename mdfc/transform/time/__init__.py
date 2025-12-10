@@ -5,8 +5,12 @@ import numpy as np
 #   and compress once
 from .scaleup import (
     compress_time as ct_scaleup,
-    decompress_time as dt_time_scaleup,
+    decompress_time,
 )
+from .distribution_aware import (
+    compress_time as ct_distribution,
+)
+from .. import zigzag_encode, zigzag_decode
 
 # approach to scale up to the most frequent interval
 #   separate the digit & the remainder
@@ -81,12 +85,16 @@ def compress_time(*args, **kwargs):
     if USE_SCALEUP_APPROACH:
         return ct_scaleup(*args, **kwargs)
     else:
-        raise NotImplementedError("TODO!")
-def decompress_time(*args, **kwargs):
-    if USE_SCALEUP_APPROACH:
-        return dt_time_scaleup(*args, **kwargs)
-    else:
-        raise NotImplementedError("TODO!")
+        return ct_distribution(*args, **kwargs)
+# def decompress_time(*args, **kwargs):
+#     # due to recording the transformations, 
+#     #   this is always the case
+#     #   TODO function should therefore go here
+#     return dt_time_scaleup(*args, **kwargs)
+#     # if USE_SCALEUP_APPROACH:
+#     #     return dt_time_scaleup(*args, **kwargs)
+#     # else:
+#     #     raise NotImplementedError("TODO!")
 
 
 
@@ -111,18 +119,37 @@ from ...utils.decompress import (
 #   eg 1ns resolution, it may cause more issue, 
 #   but with 10us, usually it is a net benefit
 #   not sure. investigation required
-def compress_samples_time(signal_timestamps, mdf_compressor, applies_zlib=False):
+def compress_samples_time(signal_timestamps, mdf_compressor, applies_zlib=True):
     ''' 
     from mdf Signal.timestamps (the array), and the compressor object
         which has the saved time_axis,
     copmress & return the compressed size 
     of the differentiated index positions of the samples' times
     '''
+    print('begin compress_samples_time')
     # TODO decide if we write the steps of the time compression
     #   i dont want to right now
     timelocs = map_times_to_timeaxis(signal_timestamps, mdf_compressor.time_axis)
     # single differentiate to arrive at incremental index pstn
-    timelocs = np.diff(timelocs, prepend=0).astype(np.uint32)
+    timelocs = np.diff(timelocs, prepend=0).astype(np.int32)
+
+    # TODO: 
+    # scaling down the samples indices can help
+    # especially when there is high precision requested, eg 1ns
+    # and jitter in the timestamps
+    # otherwise, it seems minor, maybe a bit worse, but very minor
+    # so i think it should always be done
+    values, counts = np.unique(timelocs, return_counts=True)
+    offset_value = int(-1*values[counts.argmax()])  # 
+    timelocs += offset_value
+    # txs.append((TX_ENUMs[add_inplace], offset_value))
+    if timelocs.min() < 0:
+        zz_flag = True
+        timelocs = zigzag_encode(timelocs, bit_width=32)
+    else:
+        zz_flag = False
+
+    timelocs = timelocs.astype(np.uint32)
     # compress
     compressed_timelocs, was_split = compress_u32(timelocs)
     # TODO was_split is not implemented yet!
@@ -131,9 +158,20 @@ def compress_samples_time(signal_timestamps, mdf_compressor, applies_zlib=False)
     if applies_zlib:
         from .. import _compress_double_compress
         compressed_timelocs = _compress_double_compress(compressed_timelocs)
-    return compressed_timelocs  # a u32 array of just the bytes
+    print(f'sizeof compressed samples time {len(compressed_timelocs)}')
+    return (
+        compressed_timelocs,  # a u32 array of just the bytes
+        offset_value,
+        zz_flag,
+    )
 
-def decompress_samples_time(compressed, num_elem_expected, mdf_decompressor, applies_zlib=False):
+def decompress_samples_time(
+    compressed, 
+    num_elem_expected, mdf_decompressor, 
+    offset_value: int,
+    zz_flag: bool, 
+    applies_zlib=True
+) -> np.ndarray:
     '''
     from mdf decompressor object,
     which has the decompressed unified time axis
@@ -151,7 +189,16 @@ def decompress_samples_time(compressed, num_elem_expected, mdf_decompressor, app
         compressed = np.frombuffer(dtype=np.uint32, buffer=compressed)
     # checking should be done in decompress_u32 function
     decompressed = decompress_u32(compressed, num_elem_expected=num_elem_expected)
-    # tx's are assumed for this
+    # it is now a int32!
+    decompressed = decompressed.astype(np.int32)
+    # zz_flag is introduced
+    if zz_flag:
+        decompressed = zigzag_decode(decompressed, bit_width=32)
+    # !subtract! offset
+    decompressed -= int(offset_value)
+    # TODO does this need to be preemptively upsized to (u? i?)64?
+    #   i think so...
+    # TODO introduce fast prefix sum
     decompressed = np.cumsum(decompressed)
     # fancy select indexing --> it is just a variable slice
     return mdf_decompressor.time_axis[decompressed]

@@ -13,6 +13,10 @@ def scale_up(arr, n, *a):
     return arr*n
 def scale_down(arr, n, *a):
     return arr/n
+def add_inplace(arr, n, *a):
+    arr += n
+def sub_inplace(arr, n, *a):
+    arr -= n
 
 def diff(arr, *a):
     # in place diff is not possible with numpy 
@@ -29,9 +33,19 @@ def cumsum(arr, *a):
 # something like 32_to_64 & etc
 # which could also split from 64 into 2*32?
 #   as is, it is a bit not clear enough all the time
+# TODO copy is screwed up here
 def f64_to_u64(arr, *a):
+    # it does make a copy :(
     return arr.astype(np.uint64, copy=False)
 def u64_to_f64(arr, *a):
+    # it does make a copy :(
+    return arr.astype(np.float64, copy=False)
+
+def f64_to_i64(arr, *a):
+    # it does make a copy :(
+    return arr.astype(np.int64, copy=False)
+def i64_to_f64(arr, *a):
+    # it does make a copy :(
     return arr.astype(np.float64, copy=False)
 
 def u64_to_u32(arr, *a):
@@ -84,6 +98,9 @@ TRANSFORMATIONS = {
     5: (zigzag_encode, zigzag_decode),
     6: (i64_to_i32, i32_to_i64),
     7: (i32_to_u32, u32_to_i32), 
+    8: (add_inplace, sub_inplace),
+    # 9: (sub_inplace, add_inplace),  # dont think this works w/o proper enum...?
+    9: (f64_to_i64, i64_to_f64),
 }
 
 # inverted
