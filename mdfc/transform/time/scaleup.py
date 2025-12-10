@@ -36,7 +36,7 @@ from ...utils.compress import (
 from ...utils.decompress import (
     decompress_u32
 )
-from ...utils.asammdf_util import map_times_to_timeaxis  # under .asammdf_util
+
 
 MAX_U64_VALUE = np.iinfo(np.uint64).max
 MAX_U32_VALUE = np.iinfo(np.uint32).max
@@ -64,20 +64,23 @@ def compress_time(time_axis, applies_zlib=True, time_resolution=None):
     # scale up until reaching whole numbers
     #   or we exceed uint64 max range
     #   TODO decide if uint128 should be allowed, i dont think so though
-    # scale = 1
+    
     # testing :)  rounding to some time resolution
-    from . import round_and_convert_timeunit  # circular import
-    time_axis, scale = round_and_convert_timeunit(time_axis, time_resolution=time_resolution)
-    while not np.allclose(time_axis, np.round(time_axis)):
-        scale *= 10
-        time_axis = scale_up(time_axis, 10)  # just *=
-        # TODO this should be sorted so we can just check the last value
-        if time_axis.max() > MAX_U64_VALUE:
-            # enhancement would be required
-            raise ValueError(
-                "File has timestamps that are too large & precise to be compressed... "
-                f"scaleup factor needed to be {scale}, but file max timestamp of {maxval} "
-                "would be out of range of uint64!")
+    if not (time_resolution is None):
+        from . import round_and_convert_timeunit  # circular import
+        time_axis, scale = round_and_convert_timeunit(time_axis, time_resolution=time_resolution)
+    else:
+        scale = 1
+        while not np.allclose(time_axis, np.round(time_axis)):
+            scale *= 10
+            time_axis = scale_up(time_axis, 10)  # just *=
+            # TODO this should be sorted so we can just check the last value
+            if time_axis.max() > MAX_U64_VALUE:
+                # enhancement would be required
+                raise ValueError(
+                    "File has timestamps that are too large & precise to be compressed... "
+                    f"scaleup factor needed to be {scale}, but file max timestamp of {maxval} "
+                    "would be out of range of uint64!")
     # record the transformation
     txs.append((TX_ENUMs[scale_up], scale))
 
@@ -103,6 +106,9 @@ def compress_time(time_axis, applies_zlib=True, time_resolution=None):
     time_axis = u64_to_u32(time_axis)
     txs.append((TX_ENUMs[u64_to_u32], ))
     
+    # debugging, want to know how many unique samples there are
+    # unqs, counts = np.unique(time_axis, return_counts=True)
+    # print(f'DEBUG: {len(unqs)} unique elements after rounding')
     # compress!  and indicate if it was required to split 64 into 2*32
     #           this is always False for now... not supported yet
     compressed, was_split = compress_u32(time_axis)
@@ -157,49 +163,3 @@ def decompress_time(compressed: Union[bytes, npt.NDArray[np.uint32]],
 
 
 
-# i guess we can have a function for "compress samples time..."
-# seems a bit shitty
-def compress_samples_time(signal_timestamps, mdf_compressor, applies_zlib=False):
-    ''' 
-    from mdf Signal.timestamps (the array), and the compressor object
-        which has the saved time_axis,
-    copmress & return the compressed size 
-    of the differentiated index positions of the samples' times
-    '''
-    # TODO decide if we write the steps of the time compression
-    #   i dont want to right now
-    timelocs = map_times_to_timeaxis(signal_timestamps, mdf_compressor.time_axis)
-    # single differentiate to arrive at incremental index pstn
-    timelocs = np.diff(timelocs, prepend=0).astype(np.uint32)
-    # compress
-    compressed_timelocs, was_split = compress_u32(timelocs)
-    # TODO was_split is not implemented yet!
-
-    # testing applies_zlib
-    if applies_zlib:
-        from .. import _compress_double_compress
-        compressed_timelocs = _compress_double_compress(compressed_timelocs)
-    return compressed_timelocs  # a u32 array of just the bytes
-
-def decompress_samples_time(compressed, num_elem_expected, mdf_decompressor, applies_zlib=False):
-    '''
-    from mdf decompressor object,
-    which has the decompressed unified time axis
-        as time_axis,
-    decompress the bytes passed "compressed"
-        into a new array
-        which corresponds to the idx locs of time_axis,
-    return those times slice
-    '''
-    # testing applies_zlib
-    if applies_zlib:
-        from .. import _decompress_double_compress
-        compressed = _decompress_double_compress(compressed)
-    if isinstance(compressed, bytes):
-        compressed = np.frombuffer(dtype=np.uint32, buffer=compressed)
-    # checking should be done in decompress_u32 function
-    decompressed = decompress_u32(compressed, num_elem_expected=num_elem_expected)
-    # tx's are assumed for this
-    decompressed = np.cumsum(decompressed)
-    # fancy select indexing --> it is just a variable slice
-    return mdf_decompressor.time_axis[decompressed]

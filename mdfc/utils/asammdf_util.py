@@ -28,5 +28,7 @@ def map_times_to_timeaxis(times, timeaxis):
 
     this is just np seacrhsorted
     and timeaxis is ensured to be sorted already as per above
+
+    TODO do we need to think on the "side"?
     '''
-    return np.searchsorted(timeaxis, times)
+    return np.searchsorted(timeaxis, times, side='left')
