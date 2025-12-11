@@ -84,6 +84,8 @@ class MDFCompressor(object):
             self.name = Path(name)
             if self.name.exists() and (not self.overwrite):
                 raise FileExistsError(f"File {name} already exists! Pass overwrite=True to overwrite it")
+            # make the containing dirs
+            self.name.parent.mkdir(exist_ok=True, parents=True)
             self.open_stream_func = lambda: open(self.name, 'wb')
         else:
             self.name = BytesIO()
@@ -239,14 +241,25 @@ class MDFCompressor(object):
         #       as the last "transformation"
         # TODO that above information isnt important to have 
         #   once the logic is done in the helper function
-        decompressed_shape = self.time_axis.shape
-
         # transform & compress
-        compressed_time, txs = compress_time(
+        compressed_time, txs, time_axis_out = compress_time(
             self.time_axis,
             applies_zlib=True,
             time_resolution=self.time_resolution,
+            # TODO testing unique retention
+            # on initial test... does not seem to help too much
+            #   with real-world data :(
+            #   really not sure why... i thought it could drastically reduce
+            #   the total number of unified time values
+            retain_only_uniques=False,
         )
+        # reassign to preserve unique values
+        #   if specified as kwarg 
+        if not(time_axis_out is None):
+            print('reassign unique time axis due to retain_only_uniques=True')
+            self.time_axis = time_axis_out
+        decompressed_shape = self.time_axis.shape
+        # metadata
         self.time_metadata = (self.curr_offset, len(compressed_time), decompressed_shape, txs)
         # write to file & save a flag so we dont do it again!
         self._write_bytes(compressed_time)
