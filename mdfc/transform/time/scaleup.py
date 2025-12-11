@@ -41,7 +41,7 @@ from ...utils.decompress import (
 MAX_U64_VALUE = np.iinfo(np.uint64).max
 MAX_U32_VALUE = np.iinfo(np.uint32).max
 
-def compress_time(time_axis, applies_zlib=True, time_resolution=None):
+def compress_time(time_axis, applies_zlib=True, time_resolution=None, *a, retain_only_uniques=False):
     ''' 
     take the unified time_axis (should be a f64 array)
     apply & record transformations in order
@@ -90,9 +90,25 @@ def compress_time(time_axis, applies_zlib=True, time_resolution=None):
     time_axis = f64_to_u64(time_axis)
     txs.append((TX_ENUMs[f64_to_u64], ))
 
+    # what if we remove duplicates now...
+    # this will cause some overlap in the samples
+    #   of course.. same as saying "reduced timestamp precision"
+    #   but it may not cause extra loss of fidelity?
+    #   although perhaps it should?
+    # lets try it, it could drastically reduce the sizes
+    if retain_only_uniques:
+        print('begin only retain unique timestamps!')
+        # this will definitely need to be better for memory management lol
+        # sort here is OK due to MDF ascending spec
+        times_out = np.sort(np.unique(time_axis))/scale
+    else:
+        times_out = None
+
     # differentiate (and preserve original dtype u64)
     #   that is acceptable in this context since the list is ascending
     #   this can be made more clear when we move stuff into cpp
+    # needs to be better on memory lol
+    #   but it can be in cpp world
     time_axis = diff(time_axis)
     txs.append((TX_ENUMs[diff], ))
 
@@ -109,8 +125,16 @@ def compress_time(time_axis, applies_zlib=True, time_resolution=None):
     txs.append((TX_ENUMs[u64_to_u32], ))
     
     # debugging, want to know how many unique timestamps there are
-    # unqs, counts = np.unique(time_axis, return_counts=True)
-    # print(f'DEBUG: {len(unqs)} unique elements after rounding')
+    # values, counts = np.unique(time_axis, return_counts=True)
+    # print(f'DEBUG: {len(values)} unique elements after rounding')
+    # import pandas as pd
+    # pd.DataFrame(
+    #     {
+    #         'values': values,
+    #         'counts': counts,
+    #     }
+    # ).to_csv('distro.csv')
+    # pd.DataFrame({'timestamps': time_axis}).to_csv('timeaxis.csv')
     # compress!  and indicate if it was required to split 64 into 2*32
     #           this is always False for now... not supported yet
     compressed, was_split = compress_u32(time_axis)
@@ -121,7 +145,7 @@ def compress_time(time_axis, applies_zlib=True, time_resolution=None):
         from .. import _compress_double_compress
         compressed = _compress_double_compress(compressed)
     print(f'scaleup method csize axis {len(compressed)}')
-    return compressed, txs
+    return compressed, txs, times_out
 
 
 
