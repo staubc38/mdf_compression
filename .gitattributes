@@ -1,0 +1,2 @@
+sample_data/**/*.mf4 filter=lfs diff=lfs merge=lfs -text
+sample_data/**/*.mdfc filter=lfs diff=lfs merge=lfs -text
