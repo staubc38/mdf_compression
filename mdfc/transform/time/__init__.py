@@ -12,17 +12,6 @@ from .distribution_aware import (
 )
 from .. import zigzag_encode, zigzag_decode
 
-# approach to scale up to the most frequent interval
-#   separate the digit & the remainder
-#   differentiate the digit
-#   compress the remainder
-#   this seems to manage noise/jitter a bit better
-#   --> meaning, somewhat higher CR
-#   than single-value approach
-
-# TODO
-
-
 
 # TODO {number}{unit} parser
 seconds_scale = {
@@ -67,10 +56,11 @@ def round_and_convert_timeunit(time_s: np.array, time_resolution=None):
         except KeyError as e:
             raise KeyError(
                 f'Got {time_resolution}, '
-                f'but only allowing {", ".join(seconds_scale.keys())}'
+                f'but only allowing values {", ".join(seconds_scale.keys())}'
             ) from e
     else:
-        scale = 1
+        # default behavior can be 1ns ("no loss of resolution")
+        scale = seconds_scale['1ns']
     # scale up & round
     time_s *= scale
     time_s = np.round(time_s, 0).astype(np.uint64)
@@ -139,11 +129,17 @@ def compress_samples_time(signal_timestamps, mdf_compressor, applies_zlib=True):
     # and jitter in the timestamps
     # otherwise, it seems minor, maybe a bit worse, but very minor
     # so i think it should always be done
+    # TODO this could be better choosing the median value??
+    #   on test, it does not help to choose the median 
+    #   vs the most frequent value
     values, counts = np.unique(timelocs, return_counts=True)
     offset_value = int(-1*values[counts.argmax()])  # 
+    # offset_value = int(-1*np.median(timelocs).astype(np.int32))
+    # offset_value=0
     timelocs += offset_value
     # txs.append((TX_ENUMs[add_inplace], offset_value))
     if timelocs.min() < 0:
+        print('DEBUG: Must zigzag time samples')
         zz_flag = True
         timelocs = zigzag_encode(timelocs, bit_width=32)
     else:
