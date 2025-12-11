@@ -2,6 +2,8 @@ Sample dataset from:
 https://zenodo.org/records/820576
 * with some transformations applied given mdfc current development status :)
 
+Using git lfs
+
 An MDF file is created using the notebook code here
 * TODO upload notebook!
 
