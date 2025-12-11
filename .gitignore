@@ -1,7 +1,8 @@
 # ETAS raw data file
 *.mf4
 *.mdfc
-*.mf4c
+!sample_data/**/*.mf4
+!sample_data/**/*.mdfc
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
