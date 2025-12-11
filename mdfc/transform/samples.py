@@ -36,6 +36,7 @@ from . import (
     u64_to_u32,
     i64_to_i32,
     i32_to_u32,
+    diff,
     TX_ENUMs,
     TX_COMPRESS,
     TX_DECOMPRESS
@@ -134,6 +135,26 @@ def _compress_int(arr):
         pass
     # else: pass
 
+    # TESTING: does differentiating the samples help
+    #           yes, highly likely this shoudl always be done
+    #           in MDF context for fixed dtypes
+    # highly likely we wont exceed int32
+    #   but there should be check & fallback
+    is_signed=True
+    # arr = np.diff(arr, prepend=0).astype(np.int32)
+    # at this point it will be either an i32 or u32
+    # after diff it should remain that
+    # we can leave it as is?
+    arr = diff(arr)
+    txs.append((TX_ENUMs[diff], ))
+    # TODO need a dtype record?
+    #   seems to work on first pass check... hmmmmmmm
+    # TODO seems like this needs to be fleshed out much more
+    #   but since it helps a lot on first trial
+    #   we can keep it for now
+    # arr.astype(np.int32)
+
+
     # after forcing u32
     #   TODO perhaps this could be implemented for 8 & 16,
     #   but i dont think it will matter much for pfor integer compression
@@ -222,6 +243,20 @@ def _compress_float(arr, *a, tolerance=-1, significands=-1, minimum_tolerance=No
             minimum_tolerance = float(minimum_tolerance)
             tolerance = max(minimum_tolerance, tolerance)
     
+
+    # TESTING: does differentiating the samples help
+    #   even in float case
+    #   -> not always helps in this context...
+    #   even with tolerance specified
+    #   not totally sure why but its whatever
+    #   TODO maybe in float case it would be better to try a few
+    #   and pick based on the best result
+    #   as per the Table 2 in FPC pdf:
+    #       https://userweb.cs.txstate.edu/~burtscher/papers/dcc07a.pdf
+    #   suggesting that, in CR, different datasets may be good/bad
+    #       although his FPC is always way faster to decompress
+    #       than the competition
+    # arr = np.diff(arr, prepend=0)
     # test
     # print(f'compress_f tolerance is {tolerance}')
     # pray!
