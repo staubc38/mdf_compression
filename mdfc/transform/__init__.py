@@ -129,12 +129,12 @@ from .samples import (
 #       especially if removing jitter
 #   it doesnt help much with fp compression
 def _compress_double_compress(bts):
-    import zlib
-    return zlib.compress(bts, 9)
-    # import zstd
-    # return zstd.compress(bts, 20)
+    # import zlib
+    # return zlib.compress(bts, 9)
+    import zstd
+    return zstd.compress(bts, 20)
 def _decompress_double_compress(bts):
-    import zlib
-    return zlib.decompress(bts)
-    # import zstd
-    # return zstd.decompress(bts)
+    # import zlib
+    # return zlib.decompress(bts)
+    import zstd
+    return zstd.decompress(bts)
