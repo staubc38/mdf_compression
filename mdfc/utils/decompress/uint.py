@@ -8,7 +8,11 @@ so far just using pyfastpfor
 
 import numpy as np
 from pyfastpfor import getCodec
-codec_name_used = 'simdbinarypacking'  # will we need to use different ones?
+# codec_name_used = 'simdbinarypacking'  # will we need to use different ones?
+# after a bit of testing, this is minorly better
+#   for "100us recording interval" in timestamps
+codec_name_used = 'fastbinarypacking32'
+# see compress for more notes
 codec = getCodec(codec_name_used)
 
 def decompress_u32(comp_arr, num_elem_expected=None, buffer_array=None):
