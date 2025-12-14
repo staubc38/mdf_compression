@@ -221,6 +221,12 @@ class MDFCompressor(object):
             for each Signal
         Therefore a flag is set after success of this function 
             which will raise an exception if set & function called again
+
+        TODO: 
+        - Under some conditions it can be better not to unify all timestamps, 
+            mostly if there is little overlap between all groups, 
+            and/or there is low resolution in timestamp required
+            therefore, implement some comprehension to judge which strategy is better
         '''
         if self._has_set_time:
             raise MDFCompressorException(
