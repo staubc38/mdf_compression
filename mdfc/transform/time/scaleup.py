@@ -51,7 +51,7 @@ def compress_time(time_axis, applies_zlib=True, time_resolution=None, *a, retain
         --> which is, the original unified time values (float array, units of seconds)
     so it may be generated & saved outside of this function
     '''
-    print('begin compress_time with scaleup method')
+    # print('begin compress_time with scaleup method')
     assert time_axis.dtype == np.float64, f"got time_axis with dtype {time_axis.dtype} but expected f64!"
     # capture ahead of time max value for error messaging
     maxval = time_axis.max()
@@ -124,17 +124,6 @@ def compress_time(time_axis, applies_zlib=True, time_resolution=None, *a, retain
     time_axis = u64_to_u32(time_axis)
     txs.append((TX_ENUMs[u64_to_u32], ))
     
-    # debugging, want to know how many unique timestamps there are
-    # values, counts = np.unique(time_axis, return_counts=True)
-    # print(f'DEBUG: {len(values)} unique elements after rounding')
-    # import pandas as pd
-    # pd.DataFrame(
-    #     {
-    #         'values': values,
-    #         'counts': counts,
-    #     }
-    # ).to_csv('distro.csv')
-    # pd.DataFrame({'timestamps': time_axis}).to_csv('timeaxis.csv')
     # compress!  and indicate if it was required to split 64 into 2*32
     #           this is always False for now... not supported yet
     compressed, was_split = compress_u32(time_axis)
@@ -144,7 +133,7 @@ def compress_time(time_axis, applies_zlib=True, time_resolution=None, *a, retain
     if applies_zlib:
         from .. import _compress_double_compress
         compressed = _compress_double_compress(compressed)
-    print(f'scaleup method csize axis {len(compressed)}')
+    # print(f'scaleup method csize axis {len(compressed)}')
     return compressed, txs, times_out
 
 

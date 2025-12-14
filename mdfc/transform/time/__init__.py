@@ -116,7 +116,7 @@ def compress_samples_time(signal_timestamps, mdf_compressor, applies_zlib=True):
     copmress & return the compressed size 
     of the differentiated index positions of the samples' times
     '''
-    print('begin compress_samples_time')
+    # print('begin compress_samples_time')
     # TODO decide if we write the steps of the time compression
     #   i dont want to right now
     timelocs = map_times_to_timeaxis(signal_timestamps, mdf_compressor.time_axis)
@@ -139,7 +139,7 @@ def compress_samples_time(signal_timestamps, mdf_compressor, applies_zlib=True):
     timelocs += offset_value
     # txs.append((TX_ENUMs[add_inplace], offset_value))
     if timelocs.min() < 0:
-        print('DEBUG: Must zigzag time samples')
+        # print('DEBUG: Must zigzag time samples')
         zz_flag = True
         timelocs = zigzag_encode(timelocs, bit_width=32)
     else:
@@ -154,7 +154,7 @@ def compress_samples_time(signal_timestamps, mdf_compressor, applies_zlib=True):
     if applies_zlib:
         from .. import _compress_double_compress
         compressed_timelocs = _compress_double_compress(compressed_timelocs)
-    print(f'sizeof compressed samples time {len(compressed_timelocs)}')
+    # print(f'sizeof compressed samples time {len(compressed_timelocs)}')
     return (
         compressed_timelocs,  # a u32 array of just the bytes
         offset_value,
