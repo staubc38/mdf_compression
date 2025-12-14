@@ -76,3 +76,15 @@ MDF Footer: ...TBD...
 -------+----------------+
 ```
 
+## Timestamps indices metadata
+Offsetting the timestamp indices (differentials), centered around zero, is noticed to have some compression benefit for timestamp indices compression, can be up to ~20%!\
+Therefore the offset value (int32) & a boolean flag (if zigzag coding was required) must be saved to decompress the result later, therefore this is saved in 5 bytes before the compressed timestamps bytes. Perhaps in the future this can be better described... this was easy to add.\
+IE:
+```
++-4 bytes-+-1 bytes-+-n bytes (saved in compression metadata)-+
+| scale   | bool    | signal n                                |
+| value   | flag    | timestamps                              |
+| diff'd  | zigzag  | indices                                 |
+| indices | appl'd  | comressed                               |
++---------+---------+-----------------------------------------+
+```

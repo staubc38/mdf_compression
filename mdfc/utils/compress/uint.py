@@ -10,7 +10,21 @@ so far just using pyfastpfor
 
 import numpy as np
 from pyfastpfor import getCodec
-codec_name_used = 'simdbinarypacking'  # will we need to use different ones?
+# codec_name_used = 'simdbinarypacking'  # will we need to use different ones?
+# after a bit of testing, this is minorly better
+#   for "100us recording interval" in timestamps
+codec_name_used = 'fastbinarypacking32'
+'''
+all of these are minor on the unified axis
+    simdbinarypacking is OK (example case)
+
+but these seem to work well for indices compression:
+fastbinarypacking32, synonym of BP32?
+fastpfor128
+
+TODO perhaps a different codec will be better for various samples?
+
+''' 
 codec = getCodec(codec_name_used)
 
 # TODO make entry point function "compress_u"
