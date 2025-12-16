@@ -42,10 +42,12 @@ from . import (
     TX_DECOMPRESS
 )
 from ..utils.compress import (
-    compress_u32, compress_f
+    compress_u32, compress_f,
+    compress_f_lossless,
 )
 from ..utils.decompress import (
-    decompress_u32, decompress_f
+    decompress_u32, decompress_f,
+    decompress_f_lossless
 )
 
 # dtype is required, 
@@ -243,7 +245,7 @@ def _compress_float(arr, *a, tolerance=-1, significands=-1, minimum_tolerance=No
             minimum_tolerance = float(minimum_tolerance)
             tolerance = max(minimum_tolerance, tolerance)
     
-
+    # print(f'arrive at tolerance {tolerance}')
     # TESTING: does differentiating the samples help
     #   even in float case
     #   -> not always helps in this context...
@@ -260,20 +262,40 @@ def _compress_float(arr, *a, tolerance=-1, significands=-1, minimum_tolerance=No
     # test
     # print(f'compress_f tolerance is {tolerance}')
     # pray!
-    compressed, was_split = compress_f(arr, atol=tolerance)
+    if (not tolerance) or (tolerance == -1):
+        print('using lossless compress_f, be aware proper decompression is not implemented yet!')
+        compressed, was_split = compress_f_lossless(arr)
+    else:
+        compressed, was_split = compress_f(arr, atol=tolerance)
     txs.append(was_split)
     return compressed, txs
 
-
+def compress_samples_from_signal(signal, *args, **kwargs):
+    ''' 
+    call compress_samples using a asammdf.MDF.Signal object
+    which has .samples properties (the values in a numpy array)
+    and other args/kwargs passed to compress_samples
+    '''
+    return compress_samples(signal.samples, *args, **kwargs)
+def compress_samples_from_series(series, *args, **kwargs):
+    ''' 
+    call compress_samples using a pd.Series object
+    which has .values properties (the values in a numpy array)
+    and other args/kwargs passed to compress_samples
+    '''
+    return compress_samples(series.values, *args, **kwargs)
 def compress_samples(
-    signal, dtype, 
-    applies_zlib: Optional[bool] = None,
+    samples_array: np.ndarray,
+    # signal, dtype, 
+    applies_zlib: Optional[bool] = True,
     **kwargs
 ):
     '''
-    based on the dtype of the samples, 
-        the name of which is passed as dtype argument,
-    compress the .samples of it using the appropriate compression algo
+    based on the dtype of the samples_array, 
+        TODO do we need to capture the dtype from the MDF object? 
+        ie not the numpy name?
+        anyway...
+    compress it using the appropriate compression algo
 
     which is
         pfor for ints,
@@ -281,17 +303,18 @@ def compress_samples(
             which has some kwargs passed through
             for lossy options (tolerance & etc)
     '''
-
+    dtype = samples_array.dtype.name
     if not (dtype in VALID_DTYPE_NAMES):
         raise ValueError(f"dtype {dtype} not recognized, please use one of ({', '.join(VALID_DTYPE_NAMES)})")
-    samples = signal.samples
+    # samples_array = signal.samples
     # TODO this works presently... maybe not when we use ASAM/MDF dtype names
     if 'int' in dtype:
-        compressed, txs = _compress_int(samples)
+        compressed, txs = _compress_int(samples_array)
     elif 'float' in dtype:
-        compressed, txs = _compress_float(samples, **kwargs)
+        compressed, txs = _compress_float(samples_array, **kwargs)
     else:
-        raise ValueError(f"Unrecognized dtype {dtype} in metadata...")
+        # cant get here?
+        raise ValueError(f"Unrecognized dtype named {dtype}...")
 
     if applies_zlib:
         from . import _compress_double_compress
@@ -315,18 +338,22 @@ def decompress_samples(compressed, metadata):  # dtype, shape_expected, txs, ):
     # unpack metadata
     dtype = metadata.get('dtype')
     shape_expected = metadata.get('dshape')
-    txs = metadata.get('txs')
-    applies_zlib = metadata.get('applies_zlib')
+    c_txs = metadata.get('c_txs')
+    double_c = metadata.get('double_c')
 
     if not (dtype in VALID_DTYPE_NAMES):
         raise ValueError(f"dtype {dtype} not recognized, please use one of ({', '.join(VALID_DTYPE_NAMES)})")
     
     # total num elements is the product of the shape
+    # TODO this should not be done here,
+    #   shape should be passed to decompression function
+    #   presently this only works for 1d anyway so it is kind of ok...
+    #       more like "not catastrophic"
     num_elem_expected = shape_expected[0]
     for n in shape_expected[1:]:
         num_elem_expected *= n
 
-    if applies_zlib:
+    if double_c:
         from . import _decompress_double_compress
         compressed = _decompress_double_compress(compressed)
     # TODO this works presently... maybe not when we use ASAM/MDF dtype names
@@ -338,15 +365,25 @@ def decompress_samples(compressed, metadata):  # dtype, shape_expected, txs, ):
         decompressed = decompress_u32(compressed, num_elem_expected)
     elif 'float' in dtype:
         # TODO zfp can accept the byte(stream?)
-        decompressed = decompress_f(compressed, num_elem_expected)
+        # TODO need a wrapper & metadata record
+        #   to judge which decompression algo we use here
+        # this is trash but i want to be testing
+        try:
+            print('attempt decompress lossless, if you are reading this message, '
+                  'please enhance the decompression implementation for fp :)')
+            decompressed = decompress_f_lossless(compressed, shape_expected, dtype=dtype)
+        except:
+            print('attempt decompress zfp, if you are reading this message, '
+                  'please enhance the decompression implementation for fps :)')
+            decompressed = decompress_f(compressed, num_elem_expected, dtype=dtype)
     else:
         raise ValueError(f"Unrecognized dtype {dtype} in metadata...")
 
     # 2u32 to 1u64 not implemented yet
-    if txs[-1] == True:
+    if c_txs[-1] == True:
         raise NotImplementedError(f"Unification of 2u32 -> u64 is not implemented yet!")
     # walk through TX_DECOMPRESS
-    for tx in txs[-2::-1]:
+    for tx in c_txs[-2::-1]:
         tx_enum = tx[0]
         tx_args = tx[1:]
         decompressed = TX_DECOMPRESS[tx_enum](decompressed, *tx_args)

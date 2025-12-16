@@ -119,7 +119,10 @@ from .time import (
     compress_samples_time, decompress_samples_time
 )
 from .samples import (
-    compress_samples, decompress_samples
+    # compress_samples, 
+    compress_samples_from_signal,
+    compress_samples_from_series,
+    decompress_samples,
 )
 
 # double-compress wrapper
