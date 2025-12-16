@@ -9,8 +9,9 @@ so far just using zfpy
 
 import numpy as np
 from zfpy import decompress_numpy
+import zstd
 
-def decompress_f(comp, num_elem_expected=None, buffer_array=None):
+def decompress_f(comp, num_elem_expected=None, dtype=None, buffer_array=None):
     '''
     decompress bytes using zfpy, 
         which would/should have been compressed using zfpy
@@ -28,4 +29,15 @@ def decompress_f(comp, num_elem_expected=None, buffer_array=None):
     #   which will be required to use prealloc buffer, i think
     res = decompress_numpy(comp)
     return res
-    
+
+def decompress_f_lossless(comp, num_elem_expected, dtype, buffer_array=None):
+    '''
+    decompress bytes using zstd,
+        which seems to produce a new buffer?
+    and produce the numpy array from the decompressed buffer
+    therefore requiring num_elem_expected
+    '''
+    # TODO gauge bufsize result to tell bitlength
+    buf = zstd.decompress(comp)
+    buf = np.frombuffer(buffer=buf, dtype=dtype)
+    return buf.reshape(num_elem_expected)

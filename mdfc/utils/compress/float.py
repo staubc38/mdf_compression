@@ -9,6 +9,8 @@ using zfpy library,
 
 import numpy as np
 from zfpy import compress_numpy
+from zstd import compress
+ZSTD_LEVEL = 5  # no specific reason why
 
 def compress_f(arr, atol=-1):
     '''
@@ -55,4 +57,17 @@ def compress_f(arr, atol=-1):
     # it is already returned as bytes
     # print(f'compress_f with atol = {atol}')
     comp_buffer = compress_numpy(arr, tolerance=atol)
+    return (comp_buffer, bitwise_split_required)
+
+def compress_f_lossless(arr):
+    '''
+    just compress the fp array using zstd
+    this seems to produce a better CR than zfp
+        for temperature & gps data at least
+        * when retaining a 2d array at least...
+            could work out with 1d arrays too?
+    '''
+    # no need
+    bitwise_split_required = False
+    comp_buffer = compress(arr, ZSTD_LEVEL)
     return (comp_buffer, bitwise_split_required)
