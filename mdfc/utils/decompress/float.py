@@ -9,7 +9,10 @@ so far just using zfpy
 
 import numpy as np
 from zfpy import decompress_numpy
-import zstd
+try:
+    from zstd import decompress
+except ModuleNotFoundError:
+    from zstandard import decompress  # windows
 
 def decompress_f(comp, num_elem_expected=None, dtype=None, buffer_array=None):
     '''
@@ -38,6 +41,6 @@ def decompress_f_lossless(comp, num_elem_expected, dtype, buffer_array=None):
     therefore requiring num_elem_expected
     '''
     # TODO gauge bufsize result to tell bitlength
-    buf = zstd.decompress(comp)
+    buf = decompress(comp)
     buf = np.frombuffer(buffer=buf, dtype=dtype)
     return buf.reshape(num_elem_expected)

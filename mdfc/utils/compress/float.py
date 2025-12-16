@@ -9,7 +9,10 @@ using zfpy library,
 
 import numpy as np
 from zfpy import compress_numpy
-from zstd import compress
+try:
+    from zstd import compress
+except ModuleNotFoundError:
+    from zstandard import compress  # windows
 ZSTD_LEVEL = 5  # no specific reason why
 
 def compress_f(arr, atol=-1):

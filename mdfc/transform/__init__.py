@@ -134,10 +134,16 @@ from .samples import (
 def _compress_double_compress(bts):
     # import zlib
     # return zlib.compress(bts, 9)
-    import zstd
-    return zstd.compress(bts, 20)
+    try:
+        from zstd import compress
+    except ModuleNotFoundError:
+        from zstandard import compress  # windows
+    return compress(bts, 20)
 def _decompress_double_compress(bts):
     # import zlib
     # return zlib.decompress(bts)
-    import zstd
-    return zstd.decompress(bts)
+    try:
+        from zstd import decompress
+    except ModuleNotFoundError:
+        from zstandard import decompress  # windows
+    return decompress(bts)
