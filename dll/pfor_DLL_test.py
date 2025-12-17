@@ -4,7 +4,7 @@ import os
 import pandas as pd
 import numpy as np
 #####Initalize DLL######
-dll_path = r"C:\Users\cjfit\Documents\Coding\FastPFor\build\x64\Debug\DLL_Test.dll"
+dll_path = r"C:\Users\cjfit\Documents\Coding\mdf_compression\utils\FastPFor\build\x64\Debug\PFOR_DLL.dll"
 try:
     pfor_dll = ctypes.cdll.LoadLibrary(dll_path)
 except OSError as e:
@@ -14,7 +14,7 @@ except OSError as e:
 
 
 #####Set Up Test Data ##
-df = pd.read_csv(r"C:\Users\cjfit\Documents\Coding\FastPFor\sample.csv", header=None)
+df = pd.read_csv(r"C:\Users\cjfit\Documents\Coding\mdf_compression\utils\FastPFor\data\sample.csv", header=None)
 df_list = df[0].to_list()
 in_data = (ctypes.c_uint32 * len(df_list))(*df_list)
 in_data_len = len(in_data)
