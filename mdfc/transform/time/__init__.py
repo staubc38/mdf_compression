@@ -109,7 +109,7 @@ from ...utils.decompress import (
 #   eg 1ns resolution, it may cause more issue, 
 #   but with 10us, usually it is a net benefit
 #   not sure. investigation required
-def compress_samples_time(signal_timestamps, mdf_compressor, applies_zlib=True):
+def compress_samples_time(signal_timestamps, mdf_compressor, applies_zlib=True, *a, _is_mapped=True):
     ''' 
     from mdf Signal.timestamps (the array), and the compressor object
         which has the saved time_axis,
@@ -119,7 +119,11 @@ def compress_samples_time(signal_timestamps, mdf_compressor, applies_zlib=True):
     # print('begin compress_samples_time')
     # TODO decide if we write the steps of the time compression
     #   i dont want to right now
+    # if _is_mapped:
     timelocs = map_times_to_timeaxis(signal_timestamps, mdf_compressor.time_axis)
+    # else:
+        # raise NotImplementedError("TODO this branch needs to be removed...")
+        # timelocs = signal_timestamps
     # single differentiate to arrive at incremental index pstn
     timelocs = np.diff(timelocs, prepend=0).astype(np.int32)
 
@@ -135,7 +139,6 @@ def compress_samples_time(signal_timestamps, mdf_compressor, applies_zlib=True):
     values, counts = np.unique(timelocs, return_counts=True)
     offset_value = int(-1*values[counts.argmax()])  # 
     # offset_value = int(-1*np.median(timelocs).astype(np.int32))
-    # offset_value=0
     timelocs += offset_value
     # txs.append((TX_ENUMs[add_inplace], offset_value))
     if timelocs.min() < 0:
@@ -185,7 +188,6 @@ def decompress_samples_time(
         compressed = np.frombuffer(dtype=np.uint32, buffer=compressed)
     # checking should be done in decompress_u32 function
     decompressed = decompress_u32(compressed, num_elem_expected=num_elem_expected)
-    # it is now a int32!
     decompressed = decompressed.astype(np.int32)
     # zz_flag is introduced
     if zz_flag:

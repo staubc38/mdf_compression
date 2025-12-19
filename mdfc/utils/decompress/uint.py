@@ -15,6 +15,7 @@ codec_name_used = 'fastbinarypacking32'
 # see compress for more notes
 codec = getCodec(codec_name_used)
 
+
 def decompress_u32(comp_arr, num_elem_expected=None, buffer_array=None):
     '''
     decompress a scalar numpy array using pyfastpfor simdbinarypacking codec

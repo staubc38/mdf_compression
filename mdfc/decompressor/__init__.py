@@ -1,7 +1,7 @@
 '''
 class to support decompression from a MDFC file
 '''
-from typing import Optional, Union
+from typing import Optional, Union, List
 
 from pathlib import Path
 from io import BytesIO, SEEK_SET, SEEK_END
@@ -16,10 +16,10 @@ from asammdf.signal import Signal
 
 from .. import (
     MAGIC_HEADER,
-    METADATA_POS_SIZE,
-    METADATA_LENGTH_SIZE,
-    MAX_METADATA_BYTES,
-    METADATA_DEFAULT_FIELDS,
+    COMP_METADATA_POS_SIZE,
+    COMP_METADATA_LENGTH_SIZE,
+    COMP_METADATA_MAX_BYTES,
+    COMP_METADATA_GROUP_FIELDS,
 )
 from ..transform import (
     decompress_time, decompress_samples_time, 
@@ -86,8 +86,15 @@ class MDFDecompressor(object):
             self.open_stream_func = lambda: open(self.name, 'rb')
 
         # placeholder for metadata read from the file footer
-        self.metadata = defaultdict(lambda: copy.deepcopy(METADATA_DEFAULT_FIELDS))
+        self.metadata: List[COMP_METADATA_GROUP_FIELDS] = list()
+        #              # = defaultdict(lambda: copy.deepcopy(COMP_METADATA_CHANNEL_FIELDS))
         self.mdf_metadata = {}  # other required to reconstruct MDF file, TODO issue #2
+
+        # placeholder for enumeration of {channel_name: group_id}
+        #   TODO this doesnt work for asam standard,
+        #   same name can be in multiple groups
+        #   ask Daniel for suggestions?
+        self.channame_to_group = {}
 
         # we need to save the decompressed time axis to look up the index values with each MDF signal
         self.time_axis = None  # the decompressed, reconstructed, unified timestamps
@@ -98,16 +105,18 @@ class MDFDecompressor(object):
     # context manager can open/close the stream
     def __enter__(self):
         self.fstream = self.open_stream_func()
+        # seek
+        self.fstream.seek(0)
         # ensure we have the right header
         hedaer_bytes = self._read_bytes(len(MAGIC_HEADER), 0)
         if not (hedaer_bytes == MAGIC_HEADER):
             raise ValueError(f'Magic header not recognized at start of file, got {hedaer_bytes}!')
         # read position-start and size of metadata
         # zero is placeholder --> file did not write properly
-        metadata_pos = int.from_bytes(self._read_bytes(METADATA_POS_SIZE))
+        metadata_pos = int.from_bytes(self._read_bytes(COMP_METADATA_POS_SIZE))
         if metadata_pos == 0:
             raise ValueError(f'Metadata position not properly written in file, got {metadata_pos}')
-        metadata_length = int.from_bytes(self._read_bytes(METADATA_LENGTH_SIZE))
+        metadata_length = int.from_bytes(self._read_bytes(COMP_METADATA_LENGTH_SIZE))
         if metadata_length == 0:
             raise ValueError(f'Metadata length not properly written in file, got {metadata_length}')
         
@@ -116,6 +125,15 @@ class MDFDecompressor(object):
         #   second element is signals metadata
         self.time_metadata, self.metadata = json.loads(self._read_bytes(metadata_length, metadata_pos))
         # TODO read the MDF metadata
+
+        # create mapper
+        #   TODO this doesnt work for asam standard,
+        #   same name can be in multiple groups
+        #   ask Daniel for suggestions?
+        self.channame_to_group = {
+            chan_key: n for n, group in enumerate(self.metadata)
+            for chan_key, _ in group['channels'].items()
+        }
 
         # TODO not sure if we should decompress the timeaxis upfront
         # but i will, for now
@@ -210,26 +228,41 @@ class MDFDecompressor(object):
         
         Returns the reconstructed MDF Signal object
         '''
-        # pick out required informations
-        signal_shape = self.metadata[signal_name]['dshape']
-        signal_dtype = self.metadata[signal_name]['dtype']
-        signal_start = self.metadata[signal_name]['start']
-        csize = self.metadata[signal_name]['csize_t']
+        # which group are we in?
+        # TODO this doesnt really work
+        #   signal names can be found in multiple groups
+        #   ask Daniel for suggestions
+        this_group_id = self.channame_to_group[signal_name]
+        this_group_md = self.metadata[this_group_id]
+        this_chan_md = this_group_md['channels'][signal_name]
+
+        # pick out required informations of the channel
+        signal_shape = this_chan_md['dshape']
+        signal_dtype = this_chan_md['dtype']
+        signal_txs = this_chan_md['c_txs']
+        # signal_is_doublec = this_chan_md['double_c']
+        # decompress time from the group
+        time_shape = this_group_md['record_count']  # should be redundant with signal_shape[0]
+        time_start = this_group_md['time_c_addr']
+        csize_t = this_group_md['time_c_size']
         # is zlib-9 double-compression applied to the times & values
-        applies_zlib = self.metadata[signal_name]['applies_zlib']
+        # applies_zlib = self.metadata[signal_name]['applies_zlib']
 
         # samples timestamps block is written first
         # new spec, 5 bytes are introduced to save offset_ivalue and zigzag_flag
         # but the start is at the start of those 5
-        offset_value = int.from_bytes(self._read_bytes(4, signal_start), signed=True)
-        zz_flag = bool.from_bytes(self._read_bytes(1))
-        compressed = self._read_bytes(csize)
+        # offset_value = int.from_bytes(self._read_bytes(4, time_start), signed=True)
+        # zz_flag = bool.from_bytes(self._read_bytes(1))
+        # time_txs are saved with metadata now
+        #   think they are always written...?
+        offset_value, zz_flag = this_group_md['time_txs']
+        compressed = self._read_bytes(csize_t, time_start)
         decompressed = decompress_samples_time(
             compressed, 
-            signal_shape[0], 
+            time_shape,  # signal_shape[0], 
             self, 
-            offset_value=offset_value,
-            zz_flag=zz_flag,
+            offset_value=int(offset_value),
+            zz_flag=bool(zz_flag),  # bad idea in python?
             applies_zlib=True,  # always done presently
         )
         # i think a copy is required, 
@@ -238,11 +271,12 @@ class MDFDecompressor(object):
         timestamps = decompressed.copy()
 
         # samples block is written directly after timestamps
-        csize = self.metadata[signal_name]['csize']
-        compressed = self._read_bytes(csize)
+        c_size = this_chan_md['c_size']
+        samples_start = this_chan_md['c_addr']
+        compressed = self._read_bytes(c_size, samples_start)
         decompressed = decompress_samples(
             compressed, 
-            self.metadata[signal_name]
+            this_chan_md,  # self.metadata[signal_name]
         )  # signal_dtype, signal_shape, self.metadata[signal_name]['txs'])
         # i think a copy is required, 
         #   since later we will use a single buffer for decomp & txing
