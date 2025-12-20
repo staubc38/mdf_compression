@@ -20,11 +20,10 @@ Therefore, these characteristics are good for a specialized compressed file stru
   https://github.com/powturbo/TurboPFor-Integer-Compression
   * Timestamps can be highly compressed, order of >99% compression, by unifying -> differentiating -> applying this compression library.\
   Further, integer data values can be directly compressed with this as well! (perhaps with some more transformations based on examination of the data...)
-* ZFP: https://github.com/LLNL/zfp
-  * (optionally) Lossy floating-point compression library with [python bindings](https://zfp.readthedocs.io/en/release0.5.5/python.html).
-  * Floating-point values, in MDF file context, usually are sampled from physical measurement sources & therefore may appear "continuous".\
-  Further, lossy compression of floating-point values is usually tolerable by the MDF data customer.\
-  These charactaristics seem well suited for ZFP, as per its [documentation](https://zfp.readthedocs.io/en/release0.5.5/overview.html).
+* LC-Framework:
+  * https://github.com/burtscher/LC-framework/
+  * A library to create independent & optimal compression algos based on the data, (seemingly) by iteratively chaining various transformations & compressions, and presenting the best result(s). 
+  * Seems like a good choice to use for channel-oriented fp compression... lossy or lossless!
 
 ## Examples results
 A python library "mdfc" (**MDF C**ompressed) is created, with some simple file structure, to apply these special compression algos to MDF files. In this simple example, 1d arrays of (random & non-random) ints & floats data are trialed for compression.\
@@ -99,9 +98,12 @@ Want to explore...
 * FPC (lossless 1d float compression):
   * https://userweb.cs.txstate.edu/~burtscher/research/FPC
   * https://github.com/spenczar/fpc  (for Go)
-* LC (another lossy float compression):
-  * https://github.com/burtscher/LC-framework/
 * BLOSC (perhaps for non-standard binary signals?):
   * https://www.blosc.org/
-        
+* ZFP: https://github.com/LLNL/zfp
+  * (optionally) Lossy floating-point compression library with [python bindings](https://zfp.readthedocs.io/en/release0.5.5/python.html).
+  * After some initial trials, compressing 1d fp samples with this library doesnt give quite as good CR as just using an OTS compressor. Perhaps this would perform much better with higher dimensionality data, eg LIDAR?
+  * Floating-point values, in MDF file context, usually are sampled from physical measurement sources & therefore may appear "continuous".\
+  Further, lossy compression of floating-point values is usually tolerable by the MDF data customer.\
+  These charactaristics seem well suited for ZFP, as per its [documentation](https://zfp.readthedocs.io/en/release0.5.5/overview.html).
 
