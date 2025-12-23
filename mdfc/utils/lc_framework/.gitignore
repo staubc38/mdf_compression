@@ -1,2 +1,2 @@
-./pcb_compress/*
-./pcb_decompress/*
+pcb_compress/*
+pcb_decompress/*
