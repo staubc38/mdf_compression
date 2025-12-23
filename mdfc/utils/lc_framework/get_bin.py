@@ -111,7 +111,7 @@ def compile_lc_chain(chain_name, preprocessors_name = None):
     return True
 
 
-def _get_or_compile(chain_name, preprocess_name=None, compress=True):
+def _get_or_compile(chain_name, preprocessors_name=None, compress=True):
     '''
     LC framework generates pcb utilities
     for compression & decompression
@@ -127,12 +127,13 @@ def _get_or_compile(chain_name, preprocess_name=None, compress=True):
     target = Path(
         os.path.join(
             target,
-            chain_name
+            # chain_name
+            f'{f"{preprocessors_name}_" if preprocessors_name else ''}{chain_name}'
         )
     ).resolve()
     if not target.exists():
         # compile the compressor & decompressor for it!
-        compile_lc_chain(chain_name)
+        compile_lc_chain(chain_name, preprocessors_name=preprocessors_name)
     return target.resolve()
 
 from functools import partial

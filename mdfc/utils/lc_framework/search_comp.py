@@ -73,8 +73,10 @@ best_algo_pattern = re.compile(r'Best Algorithm Found:\s*(.*)\s*\nCompression Ra
 #   safe_file maybe
 # so we can search using the data
 #   and maybe just take some first subset of it
-def find_lossless_compression_pipeline(arr, ga_search=True):
+def find_lossless_compression_pipeline(arr, ga_search=True, abs_tolerance=None, rel_tolerance=None):
     '''
+    !!TODO change this function name!!
+
     from input array arr,
     use LC-framework's ga_search script to find 
         a !4-element! pipeline (easy first trial)
@@ -89,18 +91,45 @@ def find_lossless_compression_pipeline(arr, ga_search=True):
     # write out the binary data,
     #   maybe just the first some-odd samples
     with open(TARGET_INPUT_DATA_PATH, 'wb') as fil:
+        # TODO! better choice of initial sampling
+        #   this might give wrong result
+        #   but i bet "more random sample" would not
         fil.write(bytes(arr[:5000]))  # 5k not chosen for any good reason
 
+    # assemble command
+    # abs tolerance is the magnitude of the number
+    #   so it should be passed as is
+    # TODO rtol is a differnet quantizer name 
+    #   and would need to be ensured in the right value (percent? frac? ...?)
+    preprocessors_name = (
+        f'QUANT_ABS_0_f32({abs_tolerance})' 
+        if not (abs_tolerance is None) 
+        else 
+        (
+            f'QUANT_REL_0_f32({rel_tolerance})' 
+            if not (rel_tolerance is None) 
+            else None
+        )
+    )
+    command = (
+        sys.executable,
+        str(GA_SEARCH_SCRIPT_PATH),
+        *(
+            ('-o', preprocessors_name)
+            if preprocessors_name
+            else ()
+        ),
+        # pipeline search space, 
+        # TODO need better choice of this detail
+        '-s', '4',
+        str(TARGET_INPUT_DATA_PATH.name)
+    )
+    print('command', command)
     # call the pyscript & capture its output
     with chdir(TARGET_INPUT_DATA_PATH.parent):
         if ga_search:
             res = subprocess.run(
-                [
-                    sys.executable, 
-                    str(GA_SEARCH_SCRIPT_PATH),
-                    '-s', '4',
-                    str(TARGET_INPUT_DATA_PATH.name),
-                ],
+                command,
                 check=True,  # Raise an exception if the process returns a non-zero exit code
                 capture_output=True, # Capture stdout and stderr
                 text=True # Decode output as a string
@@ -129,4 +158,4 @@ def find_lossless_compression_pipeline(arr, ga_search=True):
             print(res.stdout)
             search_res = res.stdout
             cr = 1
-    return name, float(cr)
+    return name, float(cr), preprocessors_name

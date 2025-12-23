@@ -81,20 +81,20 @@ def u32_to_i32(arr, *a):
 # these are from daniel lemire
 # https://lemire.me/blog/2022/11/25/making-all-your-integers-positive-with-zigzag-encoding/
 # TODO do i need to handle non-int32??
-def zigzag_decode(x, bit_width=32):
+def zigzag_decode(x, bit_width=32, *a):
     return (x >> 1) ^ (-(x&1))
 
-def zigzag_encode(x, bit_width=32):
+def zigzag_encode(x, bit_width=32, *a):
     return (2*x) ^ (x >>(4 * 8 - 1))
 
 
 # testing LC-framework 
 #   presently, calling the entire pipeline one tx
-def lc_pipeline_compress(x, pipeline_name):
+def lc_pipeline_compress(x, pipeline_name, abs_tolerance=None, rel_tolerance=None, *a):
     # doesnt really belong here, 
     #   but lets roll with it...
     from ..utils.lc_framework import run_compression_pipeline
-    return run_compression_pipeline(pipeline_name, x)
+    return run_compression_pipeline(pipeline_name, x, abs_tolerance, rel_tolerance)
 
 def lc_pipeline_decompress(x, pipeline_name, dtype, dshape):
     from ..utils.lc_framework import run_decompression_pipeline

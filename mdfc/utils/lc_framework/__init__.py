@@ -62,7 +62,7 @@ from .search_comp import (
 )
 
 # main entry point
-def get_compression_pipeline(arr, lossy_magnitude = None):
+def get_compression_pipeline(arr, abs_tolerance = None):
     '''
     with the array passed,
     search for a compression algorithm that is good for this data
@@ -73,14 +73,18 @@ def get_compression_pipeline(arr, lossy_magnitude = None):
         using get_compressor_path function
         which is just wrapped around more LC-framework
     '''
-    if not (lossy_magnitude is None):
-        # placeholder
-        raise ValueError("argument lossy_magnitude is not implemented yet :)")
-    pipeline_name, pipeline_cr = find_lossless_compression_pipeline(arr)
+    # if not (abs_tolerance is None):
+    #     # placeholder
+    #     raise ValueError("argument abs_tolerance is not implemented yet :)")
+    (
+        pipeline_name, 
+        pipeline_cr, 
+        preprocessors_name
+    ) = find_lossless_compression_pipeline(arr, abs_tolerance=abs_tolerance)
     # the full path to the standalone binary compressor/decompressor
-    return get_compressor_path(pipeline_name).resolve(), pipeline_cr
+    return get_compressor_path(pipeline_name, preprocessors_name=preprocessors_name).resolve(), pipeline_cr
 
-def run_compression_pipeline(pipeline_name_or_path, arr):
+def run_compression_pipeline(pipeline_name_or_path, arr, abs_tolerance=None, rel_tolerance=None):
     '''
     run the compression pipeline specified by pipeline_name_or_path,
         ideally this is the name of it so we can lookup get_compressor_path,
@@ -112,9 +116,22 @@ def run_compression_pipeline(pipeline_name_or_path, arr):
     #   call pipeline_name_or_path with some other output file
     command = (
         str(get_compressor_path(pipeline_name_or_path)),
+        # if we have a tolerance, apply the right formatting
+        # ok sike this is not it, 
+        #   it is compiled on the fly with the preprocessor i guess?
+        # *(
+        #     ('-o', f'QUANT_ABS_0_f32({abs_tolerance})') 
+        #     if abs_tolerance
+        #     else (
+        #         ('-o', f'QUANT_REL_0_f32({rel_tolerance})')
+        #         if rel_tolerance
+        #         else ()
+        #     )
+        # ),
         str(ucfil),
         str(cfil),
     )
+    print('lc command is', command)
     # TODO decide on capture_output, etc...
     subprocess.run(command, check=True)
     #   read the bdata from the output file

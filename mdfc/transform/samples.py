@@ -184,7 +184,7 @@ def _compress_int(arr):
     txs.append(was_split)
     return compressed, txs
 
-def _compress_float(arr, *a, tolerance=-1, significands=-1, minimum_tolerance=None):
+def _compress_float(arr, *a, tolerance=-1, significands=-1, tolerance_rel=None, minimum_tolerance=None):
     '''
     transform & compress, using zfpy library,
     an array of floats
@@ -272,7 +272,8 @@ def _compress_float(arr, *a, tolerance=-1, significands=-1, minimum_tolerance=No
         #     'In transiton to use LC-framework, '
         #     'lossy compression is not implemented yet!'
         # )
-        compressed, was_split = compress_f(arr, atol=tolerance)
+        compressed, local_txs, was_split = compress_f(arr, atol=tolerance, rtol=tolerance_rel)
+        txs.extend(local_txs)
     txs.append(was_split)
     return compressed, txs
 
