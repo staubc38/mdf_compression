@@ -152,7 +152,8 @@ def _compress_double_compress(bts):
     try:
         from zstd import compress
     except ModuleNotFoundError:
-        from zstandard import compress  # windows
+        # windows
+        from zstandard import compress  # type: ignore
     return compress(bts, 20)
 def _decompress_double_compress(bts):
     # import zlib
@@ -160,5 +161,6 @@ def _decompress_double_compress(bts):
     try:
         from zstd import decompress
     except ModuleNotFoundError:
-        from zstandard import decompress  # windows
+        # windows
+        from zstandard import decompress  # type: ignore
     return decompress(bts)
