@@ -4,8 +4,10 @@ Current project status:
 * PFOR & LC-Framework are available for pip install on linux platform. \
 Therefore on that platform it is OK -> see ./examples, just simple tests. 
   - Comprable compression ratio is observed compared against stock MDF compression ("transpose + ZLib"). \
-  - Lossy compression can add much more CR compraed to stock MDF compression!
-  - Always faster decompression time, sometimes even faster than reading the uncompressed MDF!
+  - Allowing for precision loss in timestamps (eg 1us) will add noticably more CR.
+  - Floating point data can still dominate the total file size (of course). If no loss is permissible, not much gain may be observed. However...\
+  Allowing some precision loss, eg 0.1%, will give much more CR!
+  - Always faster decompression time compared to stock MDF compression, sometimes even faster than reading the uncompressed MDF!
   - [link](#examples-results)
 * PFOR is not supported with mvsc -> not OK on that platform.\
 Precompiled DLL may be OK -> needs better memory management.\
