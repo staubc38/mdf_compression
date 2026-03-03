@@ -12,6 +12,7 @@ Therefore on a thinkpad & latest ubuntu, it works well -> see ./examples, just s
 * PFOR is not supported with mvsc (nor LC-framework). Therefore pip install will fail.\
 A precompiled DLL may be OK to use for this simple project -> current wrapper needs better memory management.\
 Current wrapper (under /dll) will cause stack overflow.
+* Only 1-dimensional data of int/fp is supported from the MDF, eg lidar/pictures & comments are not comprehended.
 
 ## Description
 A MDF ([current version "MF4"](https://www.asam.net/standards/detail/mdf/wiki/)) file represents a collection of "time-series data", which are recordings from various sources that always have an associated "timestamp" with each record.\
