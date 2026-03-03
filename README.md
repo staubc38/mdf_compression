@@ -1,5 +1,15 @@
 # MDF Compression
-Studies &amp; trials on compressing data from ETAS (/ASAM) MDF files.
+Studies &amp; trials on compressing data from ETAS (/ASAM) MDF files.\
+Current project status:
+* PFOR & LC-Framework are available for pip install on linux platform. \
+Therefore on that platform it is OK -> see ./examples, just simple tests. 
+  - Comprable compression ratio is observed compared against stock MDF compression ("transpose + ZLib"). \
+  - Lossy compression can add much more CR compraed to stock MDF compression!
+  - Always faster decompression time, sometimes even faster than reading the uncompressed MDF!
+  - [link](#examples-results)
+* PFOR is not supported with mvsc -> not OK on that platform.\
+Precompiled DLL may be OK -> needs better memory management.\
+Current PCB (/dll) will cause stack overflow.
 
 ## Description
 A MDF ([current version "MF4"](https://www.asam.net/standards/detail/mdf/wiki/)) file represents a collection of "time-series data", which are recordings from various sources that always have an associated "timestamp" with each record.\
