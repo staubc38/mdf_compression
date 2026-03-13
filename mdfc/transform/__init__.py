@@ -81,26 +81,41 @@ def u32_to_i32(arr, *a):
 # these are from daniel lemire
 # https://lemire.me/blog/2022/11/25/making-all-your-integers-positive-with-zigzag-encoding/
 # TODO do i need to handle non-int32??
-def zigzag_decode(x, bit_width=32):
+def zigzag_decode(x, bit_width=32, *a):
     return (x >> 1) ^ (-(x&1))
 
-def zigzag_encode(x, bit_width=32):
+def zigzag_encode(x, bit_width=32, *a):
     return (2*x) ^ (x >>(4 * 8 - 1))
+
+
+# testing LC-framework 
+#   presently, calling the entire pipeline one tx
+def lc_pipeline_compress(x, pipeline_name, abs_tolerance=None, rel_tolerance=None, *a):
+    # doesnt really belong here, 
+    #   but lets roll with it...
+    from ..utils.lc_framework import run_compression_pipeline
+    return run_compression_pipeline(pipeline_name, x, abs_tolerance, rel_tolerance)
+
+def lc_pipeline_decompress(x, pipeline_name, dtype, dshape):
+    from ..utils.lc_framework import run_decompression_pipeline
+    bts = run_decompression_pipeline(pipeline_name, x)
+    return np.frombuffer(bts, dtype=dtype).reshape(dshape)
 
 
 # TODO consider Enum?
 # ENUM: (for_compression, for_decompression)
 TRANSFORMATIONS = {
-    1: (scale_up, scale_down),
-    2: (diff, cumsum),
-    3: (f64_to_u64, u64_to_f64),
-    4: (u64_to_u32, u32_to_u64),
-    5: (zigzag_encode, zigzag_decode),
-    6: (i64_to_i32, i32_to_i64),
-    7: (i32_to_u32, u32_to_i32), 
-    8: (add_inplace, sub_inplace),
+    1:  (scale_up, scale_down),
+    2:  (diff, cumsum),
+    3:  (f64_to_u64, u64_to_f64),
+    4:  (u64_to_u32, u32_to_u64),
+    5:  (zigzag_encode, zigzag_decode),
+    6:  (i64_to_i32, i32_to_i64),
+    7:  (i32_to_u32, u32_to_i32), 
+    8:  (add_inplace, sub_inplace),
     # 9: (sub_inplace, add_inplace),  # dont think this works w/o proper enum...?
-    9: (f64_to_i64, i64_to_f64),
+    9:  (f64_to_i64, i64_to_f64),
+    10: (lc_pipeline_compress, lc_pipeline_decompress),
 }
 
 # inverted
@@ -137,7 +152,8 @@ def _compress_double_compress(bts):
     try:
         from zstd import compress
     except ModuleNotFoundError:
-        from zstandard import compress  # windows
+        # windows
+        from zstandard import compress  # type: ignore
     return compress(bts, 20)
 def _decompress_double_compress(bts):
     # import zlib
@@ -145,5 +161,6 @@ def _decompress_double_compress(bts):
     try:
         from zstd import decompress
     except ModuleNotFoundError:
-        from zstandard import decompress  # windows
+        # windows
+        from zstandard import decompress  # type: ignore
     return decompress(bts)

@@ -184,7 +184,7 @@ def _compress_int(arr):
     txs.append(was_split)
     return compressed, txs
 
-def _compress_float(arr, *a, tolerance=-1, significands=-1, minimum_tolerance=None):
+def _compress_float(arr, *a, tolerance=-1, significands=-1, tolerance_rel=None, minimum_tolerance=None):
     '''
     transform & compress, using zfpy library,
     an array of floats
@@ -263,10 +263,17 @@ def _compress_float(arr, *a, tolerance=-1, significands=-1, minimum_tolerance=No
     # print(f'compress_f tolerance is {tolerance}')
     # pray!
     if (not tolerance) or (tolerance == -1):
-        print('using lossless compress_f, be aware proper decompression is not implemented yet!')
-        compressed, was_split = compress_f_lossless(arr)
+        # makes the choice under the hood
+        # & passes some txs
+        compressed, local_txs, was_split = compress_f_lossless(arr)
+        txs.extend(local_txs)  # TODO clearly needs improvement
     else:
-        compressed, was_split = compress_f(arr, atol=tolerance)
+        # raise NotImplementedError(
+        #     'In transiton to use LC-framework, '
+        #     'lossy compression is not implemented yet!'
+        # )
+        compressed, local_txs, was_split = compress_f(arr, atol=tolerance, rtol=tolerance_rel)
+        txs.extend(local_txs)
     txs.append(was_split)
     return compressed, txs
 
@@ -313,7 +320,7 @@ def compress_samples(
     elif 'float' in dtype:
         compressed, txs = _compress_float(samples_array, **kwargs)
     else:
-        # cant get here?
+        # TODO fallback for unstructured binary dtypes
         raise ValueError(f"Unrecognized dtype named {dtype}...")
 
     if applies_zlib:
@@ -371,7 +378,13 @@ def decompress_samples(compressed, metadata):  # dtype, shape_expected, txs, ):
         try:
             print('attempt decompress lossless, if you are reading this message, '
                   'please enhance the decompression implementation for fp :)')
-            decompressed = decompress_f_lossless(compressed, shape_expected, dtype=dtype)
+            # TODO really pushing the boundaries of 
+            #   when i should stop writing & start cleaning up
+            if not (c_txs == [False]):
+                decompressed = compressed
+            else:
+                print('with no c_txs, assume we just used zstd...')
+                decompressed = decompress_f_lossless(compressed, shape_expected, dtype=dtype)
         except:
             print('attempt decompress zfp, if you are reading this message, '
                   'please enhance the decompression implementation for fps :)')

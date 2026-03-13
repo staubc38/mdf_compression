@@ -1,8 +1,10 @@
 '''
 functions to support compressing data, 
 from numpy arrays, 
-using zfpy library, 
-    perhaps more in the future
+using the best out of:
+    zstd-5
+    LC-framework
+        which supports some lossy magnitude
 
 '''
 
@@ -15,7 +17,19 @@ except ModuleNotFoundError:
     from zstandard import compress  # windows
 ZSTD_LEVEL = 5  # no specific reason why
 
-def compress_f(arr, atol=-1):
+# trialing out LC-framework
+from ..lc_framework import (
+    get_compression_pipeline,
+    run_compression_pipeline,
+)
+# which we have made transformations, 
+#   based on the pipeline name
+from ...transform import (
+    TX_ENUMs,
+    lc_pipeline_compress,
+)
+
+def compress_f_zfpy(arr, atol=-1):
     '''
     compress a scalar numpy array using zfpy
     https://zfp.readthedocs.io/en/release0.5.5/python.html
@@ -59,8 +73,52 @@ def compress_f(arr, atol=-1):
 
     # it is already returned as bytes
     # print(f'compress_f with atol = {atol}')
-    comp_buffer = compress_numpy(arr, tolerance=atol)
+    comp_buffer = compress_numpy(arr, abs_tolerance=atol)
     return (comp_buffer, bitwise_split_required)
+
+def compress_f(arr, atol=None, rtol=None):
+    '''
+    wrapper around LC-framework lossy prepropcessor QUANT_ABS_0
+    where atol should be the precision value, 
+        eg 0.01 means +/- 0.01 abs tolerance for all values
+    TODO:
+    - QUANT_REL_0 -> relative EB, which needs to be in fraction form?
+                        eg, 0.01 means +/- 0.01*<val> 
+                        which i dont think we want
+        perhaps another arugment "as_pct" can disambiguate
+            between abs & rel tolerance
+    - rtol can mean relative tolerance
+    - atol should be entered as a number ideally smaller than zero,
+        rtol should never be entered higher than 1 (0-1 as fraction)
+    '''
+    bitwise_split_required = False
+    txs = []
+    # only have atol for now
+    # if not (rtol is None):
+    #     raise NotImplementedError("rtol not implemented yet!")
+    if (not (atol is None)) and (not (rtol is None)):
+        raise NotImplementedError("presently, only atol or rtol may be used, exclusively")
+    # for now we will just always use lc framework
+    #   but perhaps it could be improved to just 
+    #   apply rtol/atol in memory
+    #   and use zstd?
+    # TODO ^^ for later
+
+    # in lc context, "quantization" is the preprocessor
+    #   so it is part of the pipeline name
+    lc_pipeline, lc_cr = get_compression_pipeline(arr, abs_tolerance=atol, rel_tolerance=rtol)
+    # sike, tolerance has to be passed
+    #   so it will not be recovered, 
+    #   and it cannot be judged that lossy copmression magnitude
+    #   unless we write it somewhere
+    #   TODO! ^^
+    comp_buffer = lc_pipeline_compress(arr, lc_pipeline.name, abs_tolerance=atol, rel_tolerance=rtol)
+    # need to caputre the dtype & dshape in this case
+    dtype = arr.dtype.name
+    dshape = arr.shape
+    txs = [(TX_ENUMs[lc_pipeline_compress], lc_pipeline.name, dtype, dshape)]
+    # raise NotImplementedError("TODO!")
+    return (comp_buffer, txs, bitwise_split_required)
 
 def compress_f_lossless(arr):
     '''
@@ -72,5 +130,23 @@ def compress_f_lossless(arr):
     '''
     # no need
     bitwise_split_required = False
+    txs = []
     comp_buffer = compress(arr, ZSTD_LEVEL)
-    return (comp_buffer, bitwise_split_required)
+    # TODO capture size of buffer upfront
+    #   instead of so many conversions :)
+    zs_cr = len(bytes(arr)) / len(comp_buffer)
+    # lets sneak in the LC pipeline...
+    lc_pipeline, lc_cr = get_compression_pipeline(arr)
+    print('zs_cr', zs_cr, 'lc_cr', lc_cr)
+    if lc_cr > zs_cr:
+        # use LC!
+        print('use lc!')
+        # TODO assign enum for pipeline
+        #   which can just be run_decompression_pipeline with the name
+        comp_buffer = lc_pipeline_compress(arr, lc_pipeline.name)
+        # need to caputre the dtype & dshape in this case
+        dtype = arr.dtype.name
+        dshape = arr.shape
+        txs = [(TX_ENUMs[lc_pipeline_compress], lc_pipeline.name, dtype, dshape)]
+    return (comp_buffer, txs, bitwise_split_required)
+

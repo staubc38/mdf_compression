@@ -1,0 +1,70 @@
+# MDFC Examples
+Some examples of compressing MF4 files, and comparing against ASAM standard (record-oriented general-purpose compression).
+
+## Results
+A python library "mdfc" (**MDF C**ompressed) is created, with some simple file structure, to apply these special compression algos to MDF files. In this simple example, 1d arrays of (random & non-random) ints & floats data are trialed for compression.\
+Check out the notebook ./examples/test_mdfc.ipynb\
+These compression ratios & decompression times are observed:\
+(times are compared vs iterating over asammdf MDF.select function)
+* Sine wave data (double-precision values of -1 to 1, with 5% "jitter" applied),\
+  **using lossless fp compression:**\
+  (Data size: ~3M total 64bit float "samples", and ~730k total 64bit "timestamps")
+  |Uncompressed<br/>"Data size": 29 MB|Uncompressed MDF|DEFLATE'd MDF|MDFC (this example repo)|
+  |:----------|--------------------:|-----------------:|----------------------------:|
+  |Size   (MB)|                   33|                27|                       **22**|
+  |Ratio (U/C)|                  1.0|              1.23|                      **1.5**|
+  ||
+  |Decompression Time (s)|    **80**|               476|                          406|
+* Sine wave data (double-precision values of -1 to 1, with 5% "jitter" applied),\
+  **using lossy fp compression _with absolute tolerance of 1e-3_:**\
+  (Data size: ~3M total 64bit float "samples", and ~730k total 64bit "timestamps")
+  |Uncompressed<br/>"Data size": 29 MB|Uncompressed MDF|DEFLATE'd MDF|MDFC (this example repo)|
+  |:----------|--------------------:|-----------------:|----------------------------:|
+  |Size   (MB)|                   33|                27|                      **4.6**|
+  |Ratio (U/C)|                  1.0|              1.23|                      **7.2**|
+  ||
+  |Decompression Time (ms)|   **80**|               453|                          132|
+
+  (primarily attributable to lossy fp compression)
+* "Counter" data (32bit integers, counting up from 0 to 9, repeating...)\
+  (Data size: ~3M total 32bit int "samples", and ~730k total 64bit "timestamps")
+  |Uncompressed<br/>"Data size": 17 MB|Uncompressed MDF|DEFLATE'd MDF|MDFC (this example repo)|
+  |:----------|--------------------:|-----------------:|----------------------------:|
+  |Size   (MB)|                   20|                 2|                      **0.1**|
+  |Ratio (U/C)|                  1.0|                10|                      **200**|
+  ||
+  |Decompression Time (ms)|       46|                94|                       **25**|
+* Combination & scale-up of the above,\
+  **using lossy fp compression _with absolute tolerance of 1e-3_:**\
+  (Data size: ~90M 32bit int, ~90M 64bit float, 50M 64bit "timestamps", ~1.5 GB uncompressed MDF file)
+  |           |Uncompressed MDF|DEFLATE'd MDF|MDFC (this example repo)|
+  |:----------|--------------------:|-----------------:|----------------------------:|
+  |Size   (MB)|                 1500|               912|                      **139**|
+  |Ratio (U/C)|                  1.0|               1.7|                       **11**|
+  ||
+  |Decompression Time (ms)|    5,000|            16,000|                    **4,000**|
+* "Very long recording time", ~24 hours, of just "Counter" data\
+   (Data size: ~70M total 32bit int "samples", and ~17M total 64bit "timestamps")
+  |           |Uncompressed MDF|DEFLATE'd MDF|MDFC (this example repo)|
+  |:----------|--------------------:|-----------------:|----------------------------:|
+  |Size   (MB)|                  443|                48|                      **0.5**|
+  |Ratio (U/C)|                  1.0|               9.3|                      **970**|
+  ||
+  |Decompression Time (ms)|    1,500|             2,100|                      **930**|
+  
+  (primarily attributable to timestamps transformations & compression, having a larger effect with "longer recording times")
+
+## Some notes...
+* Noise in the timestamps, eg +/-(0.1% * 100ms --> 10us) jitter, causes the timestamps compression to be not as good.\
+  eg, [0, 0.01, 0.02, 0.03] becomes [0, 1, 1, 1] which compresses very well.\
+  but [0, 0.01005, 0.01995, 0.03005] becomes [0, 1005, 990, 1010] which compresses worse with FastPFOR.\
+  On testing, seems to still be somewhat comprable with zlib compression, and stil faster decompression. Therefore, not catastrophic...\ 
+  Although for best results, this needs more thought, or perhaps the TurboPFOR addresses it...?
+  * **Parameter "timestamps precision" can be introduced to allow "### ms" or "us" or etc...\
+    which doesnt solve the fundamental issue, but this precision may not be important to the user**
+  * Perhaps a hybrid approach can be taken...\
+    integer differential at the microsecond level, and another compression for just nanoseconds
+    * On simple test, it does have some benefit... 32 MB vs 50MB default :) for 1hr sampling with (0.5% * 100ms) jitter \
+      Therefore we should explore this idea a bit more :)
+* Real-world data samples:
+  * https://zenodo.org/records/820576

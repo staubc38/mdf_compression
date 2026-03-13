@@ -292,6 +292,7 @@ class MDFCompressor(object):
         on_error: Literal['raise', 'ignore', 'warn'] = 'warn',
         significands: int = -1,
         tolerance: float = -1,
+        tolerance_rel: float=-1,
         minimum_tolerance: float = -1,
         applies_zlib: Optional[bool] = None,
         time_resolution: Optional[str] = None,
@@ -369,6 +370,7 @@ class MDFCompressor(object):
                     group,
                     significands = significands,
                     tolerance = tolerance,
+                    tolerance_rel=tolerance_rel,
                     minimum_tolerance = minimum_tolerance,
                     applies_zlib = applies_zlib,
                 )
@@ -394,6 +396,7 @@ class MDFCompressor(object):
         *a, 
         significands: int = -1,
         tolerance: float = -1,
+        tolerance_rel: float=-1,
         minimum_tolerance: float = -1,
         applies_zlib: Optional[bool] = None,
     ) -> bool:
@@ -590,6 +593,7 @@ class MDFCompressor(object):
                 tolerance=tolerance,
                 significands=significands,
                 minimum_tolerance=minimum_tolerance,
+                tolerance_rel=tolerance_rel,
             )
             # write metadata before writing data
             #   which i think is OK, since we will have static buffer(s)
