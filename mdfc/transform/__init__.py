@@ -90,13 +90,26 @@ def zigzag_encode(x, bit_width=32, *a):
 
 # testing LC-framework 
 #   presently, calling the entire pipeline one tx
+# these dont really belong here, 
+#   but lets roll with it...
 def lc_pipeline_compress(x, pipeline_name, abs_tolerance=None, rel_tolerance=None, *a):
-    # doesnt really belong here, 
-    #   but lets roll with it...
+    ''' run the LC pipeline named pipeline_nane and return the compressed bytes '''
     from ..utils.lc_framework import run_compression_pipeline
     return run_compression_pipeline(pipeline_name, x, abs_tolerance, rel_tolerance)
 
 def lc_pipeline_decompress(x, pipeline_name, dtype, dshape):
+    ''' check if we CAN_USE_LC, run the decompression pipeline if so, 
+        otherwise raise an error message indicating 
+        "this file was compressed using LC, LC is required to decompress it"
+    '''
+    from ..utils.lc_framework import CAN_USE_LC
+    if not CAN_USE_LC:
+        raise NotImplementedError(
+            'This file was compressed using LC-framework. '
+            'Probably specifying some lossy tolerance in some floating point channel compression. '
+            'LC-framework was not found to be installed on this system... '
+            'therefore, decompression cannot proceed!'
+        )
     from ..utils.lc_framework import run_decompression_pipeline
     bts = run_decompression_pipeline(pipeline_name, x)
     return np.frombuffer(bts, dtype=dtype).reshape(dshape)

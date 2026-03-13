@@ -372,18 +372,19 @@ def decompress_samples(compressed, metadata):  # dtype, shape_expected, txs, ):
         #   to judge which decompression algo we use here
         # this is trash but i want to be testing
         try:
-            print('attempt decompress lossless, if you are reading this message, '
-                  'please enhance the decompression implementation for fp :)')
+            # print('attempt decompress lossless, if you are reading this message, '
+            #       'please enhance the decompression implementation for fp :)')
             # TODO really pushing the boundaries of 
             #   when i should stop writing & start cleaning up
+            # yeah wtf was this trash about
             if not (c_txs == [False]):
                 decompressed = compressed
             else:
-                print('with no c_txs, assume we just used zstd...')
+                # print('with no c_txs, assume we just used zstd...')
                 decompressed = decompress_f_lossless(compressed, shape_expected, dtype=dtype)
         except:
-            print('attempt decompress zfp, if you are reading this message, '
-                  'please enhance the decompression implementation for fps :)')
+            # print('attempt decompress zfp, if you are reading this message, '
+            #       'please enhance the decompression implementation for fps :)')
             decompressed = decompress_f(compressed, num_elem_expected, dtype=dtype)
     else:
         raise ValueError(f"Unrecognized dtype {dtype} in metadata...")
@@ -392,6 +393,9 @@ def decompress_samples(compressed, metadata):  # dtype, shape_expected, txs, ):
     if c_txs[-1] == True:
         raise NotImplementedError(f"Unification of 2u32 -> u64 is not implemented yet!")
     # walk through TX_DECOMPRESS
+    # this will have LC pipeline pcb in it, 
+    #   if we encounter one, and cannot USE_LC, 
+    #   this will raise an error
     for tx in c_txs[-2::-1]:
         tx_enum = tx[0]
         tx_args = tx[1:]
