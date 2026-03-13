@@ -268,10 +268,6 @@ def _compress_float(arr, *a, tolerance=-1, significands=-1, tolerance_rel=None, 
         compressed, local_txs, was_split = compress_f_lossless(arr)
         txs.extend(local_txs)  # TODO clearly needs improvement
     else:
-        # raise NotImplementedError(
-        #     'In transiton to use LC-framework, '
-        #     'lossy compression is not implemented yet!'
-        # )
         compressed, local_txs, was_split = compress_f(arr, atol=tolerance, rtol=tolerance_rel)
         txs.extend(local_txs)
     txs.append(was_split)

@@ -56,6 +56,7 @@ from .get_bin import (
     LC_FRAMEWORK_PATH,
     get_compressor_path,
     get_decompressor_path,
+    CAN_USE_LC,
 )
 from .search_comp import (
     find_lossless_compression_pipeline,
