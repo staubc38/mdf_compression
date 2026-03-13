@@ -1,17 +1,18 @@
 # MDF Compression
-A simple utility project with the goal to provide improved compression for ASAM MF4 files.\
-
-## Project goals:
-* Column-oriented serialization at the "MDF channel" level
-* Improved compression ratio, & decompression time, compared to ASAM standard (["DZ block"](https://www.asam.net/standards/detail/mdf/wiki/#TechnicalContent))
-* Introduce option for lossy compression of timestamps &amp; values, at the MDF channel level
-* Data can be decompressed with any lanauge (with dynamic linking). In python, just requires numpy.
-  * (clearly this is very TBD as of now... only decompress using py bindings)
-
-## Out of scope:
-* Original endianness of the data records, ie bit-for-bit reconstruction of the raw message records per group, will almost definitley be lost (perhaps that could be re-constructed?)
-* Original bit-for-bit data of timestamps will be lost if originally recorded as float-type
-
+Studies &amp; trials on compressing data from ETAS (/ASAM) MDF files.\
+Current project status:
+* PFOR & LC-Framework are available for pip install, both requiring gcc, and [PFOR having some hardware requirements](https://github.com/fast-pack/FastPFOR?tab=readme-ov-file#hardware-requirements).\
+Therefore on a thinkpad & latest ubuntu, it works well -> see ./examples, just simple tests.
+  - Comprable compression ratio is observed compared against stock MDF compression ("transpose + ZLib"). \
+  - Allowing for precision loss in timestamps (eg 1us) will add noticably more CR.
+  - Floating point data can still dominate the total file size (of course). If no loss is permissible, not much gain may be observed. However...\
+  Allowing some precision loss, eg 0.1%, will give much more CR!
+  - Always faster decompression time compared to stock MDF compression, sometimes even faster than reading the uncompressed MDF!
+  - [link](#examples-results)
+* PFOR is not supported with mvsc (nor LC-framework). Therefore pip install will fail.\
+A precompiled DLL may be OK to use for this simple project -> current wrapper needs better memory management.\
+Current wrapper (under /dll) will cause stack overflow.
+* Only 1-dimensional data of int/fp is supported from the MDF, eg lidar/pictures & comments are not comprehended.
 
 ## Description
 A MDF ([current version "MF4"](https://www.asam.net/standards/detail/mdf/wiki/)) file represents a collection of "time-series data", which are recordings from various sources that always have an associated "timestamp" with each record.\

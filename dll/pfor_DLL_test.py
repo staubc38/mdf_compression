@@ -38,9 +38,16 @@ print("Compressed Data: ", size, mem[ 0 ], mem[ 1 ], mem[ 2 ], mem[ 3 ]) #print 
 #####Decompress ########
 pfor_dll.decompress.argtypes = [ctypes.POINTER(ctypes.POINTER(ctypes.c_uint32)), ctypes.POINTER( ctypes.c_int ),
                              ctypes.POINTER(ctypes.POINTER(ctypes.c_uint32)), 
-                             ctypes.POINTER(ctypes.c_int)]
+                             ctypes.POINTER(ctypes.c_int), ctypes.c_int]
 decomp_mem = ctypes.POINTER(ctypes.c_uint32)()
 decomp_size = ctypes.c_int(0)
-pfor_dll.decompress(ctypes.byref(mem), ctypes.byref(size), ctypes.byref(decomp_mem), ctypes.byref(decomp_size))
+#I think we should store in_data_len as meta deata in the cmpr file so we know how much to allocate on the decomp
+pfor_dll.decompress(ctypes.byref(mem), ctypes.byref(size), ctypes.byref(decomp_mem), ctypes.byref(decomp_size), in_data_len)
 print("Decompressed Data: ", decomp_size, decomp_mem[ 0 ], decomp_mem[ 1 ], decomp_mem[ 2 ], decomp_mem[ 3 ])
+########################
+
+######Delete Memory ########
+pfor_dll.free_memory.argtypes = []
+pfor_dll.free_memory(mem)
+pfor_dll.free_memory(decomp_mem)
 ########################
