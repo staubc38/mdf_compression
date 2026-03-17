@@ -1,5 +1,4 @@
 # MDF Compression
-Studies &amp; trials on compressing data from ETAS (/ASAM) MDF files.
 
 ## About
 * It's just a simple wrapper around other libraries:
