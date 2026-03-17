@@ -29,7 +29,7 @@ decompress = FastPFOR_DLL.decompress
 decompress.argtypes = [
     POINTER(POINTER(c_uint32)), POINTER(c_int),
     POINTER(POINTER(c_uint32)), POINTER(c_int),
-    
+    c_int,
 ]
 # decompress.restype = c_uint32  # is true?
 
@@ -45,14 +45,14 @@ def decompress_u32(arr, num_elem_expected=None, buffer_array=None):
     seems that we use a doublepointer
     '''
     comp_size = c_int(len(arr))  # how many compressed u32 elements
-    print(f'comp_size', comp_size)
+    # print(f'comp_size', comp_size)
     if buffer_array is None:
-        print(f'numelem', num_elem_expected)
-        typ = (c_uint32*int(num_elem_expected*100))
+        # print(f'numelem', num_elem_expected)
+        typ = (c_uint32*int(num_elem_expected + 1024))
         buf = (typ)(0)
-        print(f'buf', buf)
+        # print(f'buf', buf)
         decomp_buffer = POINTER(c_uint32)()
-        print(f'decomp_buffer', decomp_buffer)
+        # print(f'decomp_buffer', decomp_buffer)
         decomp_size = c_int(0)  # -1 error?
     else:
         if num_elem_expected: raise ValueError("need buffer_array or num_elem_expected!")
@@ -60,7 +60,7 @@ def decompress_u32(arr, num_elem_expected=None, buffer_array=None):
     # call the decompressor --> return the number of indices successfully decompressed
     #   should be equal to num_elem_expected
     arr = arr.copy()
-    print(f'initial arr', arr)
+    # print(f'initial arr', arr)
     # ptr = arr.ctypes.data_as(POINTER(c_uint32))
     typ = (c_uint32*int(comp_size.value))
     buf = (typ).from_buffer_copy(bytes(arr))
@@ -68,19 +68,20 @@ def decompress_u32(arr, num_elem_expected=None, buffer_array=None):
     # reading the data is fine
     # writing data to decomp_buffer is an issue
     # how do i properly allocate memory for that??
-    print(mem)
-    print(comp_size)
-    print(decomp_buffer)
-    print(decomp_size)
+    # print(mem)
+    # print(comp_size)
+    # print(decomp_buffer)
+    # print(decomp_size)
     decompress(
         byref(mem), byref(comp_size),
-        byref(decomp_buffer), byref(decomp_size)
+        byref(decomp_buffer), byref(decomp_size), 
+        num_elem_expected
     )
     
     # slc = comp_buffer[:size_comp.value]
     # print(slc)
     bytes_out = string_at(decomp_buffer, int(decomp_size.value*sizeof(c_uint32)))
-    print(f'{len(bytes_out)} total bytes compressed')
+    # print(f'{len(bytes_out)} total bytes compressed')
     arr_out = np.frombuffer(buffer=bytes_out, dtype=np.uint32).copy()
-    print('decompd', arr_out)
+    # print('decompd', arr_out)
     return arr_out
