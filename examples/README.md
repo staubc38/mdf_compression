@@ -3,7 +3,7 @@ Some examples of compressing MF4 files, and comparing against ASAM standard (rec
 
 ## Results
 A python library "mdfc" (**MDF C**ompressed) is created, with some simple file structure, to apply these special compression algos to MDF files. In this simple example, 1d arrays of (random & non-random) ints & floats data are trialed for compression.\
-Check out [a demo notebook here](https://github.com/staubc38/mdf_compression/tree/main/examples/Automotive-ResearchDataSet-VIF_AEGIS/test_comp_decomp.ipyb).
+Check out [a demo notebook here](https://github.com/staubc38/mdf_compression/tree/main/examples/main_example.ipyb).
 
 These compression ratios & decompression times are observed:\
 (times are compared vs iterating over asammdf MDF.select function)
@@ -13,7 +13,7 @@ These compression ratios & decompression times are observed:\
     |:-----|----------:|------------:|:-|---------------:|:-----|
     |Uncompressed MDF| 89 |1.0| | **258**| |
     |DEFLATE'd MDF (ASAM 4.3?)|20 |4.5| | 890| Using "transpose+deflate", zstd-9|
-    |MDFC, Lossless (this repo)|**13.5** |**13.5**|**6.6**| | **280**| |
+    |MDFC, Lossless (this repo)|**13.5** |**13.5**| |**6.6**| | **280**| |
     |MDFC, 1ms resolution (this repo) |**8.06** |**11**| | **268**|No samples are faster than 1ms. It effectively only removes "jitter" |
 
 * Synthetic data:
