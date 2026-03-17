@@ -21,6 +21,7 @@ ZSTD_LEVEL = 5  # no specific reason why
 from ..lc_framework import (
     get_compression_pipeline,
     run_compression_pipeline,
+    CAN_USE_LC,
 )
 # which we have made transformations, 
 #   based on the pipeline name
@@ -93,6 +94,17 @@ def compress_f(arr, atol=None, rtol=None):
     '''
     bitwise_split_required = False
     txs = []
+    # if we cannot USE LC, then we should just fire zstd and quit out here, 
+    #   ie -> treat it as lossless compression
+    if not CAN_USE_LC:
+        import warnings
+        warnings.warn(
+            'LC-framework was not installed or found on this platform. '
+            'Lossy compression of floating point values utilizes LC 🙁 '
+            'Falling back to lossless compression...'
+        )
+        return compress_f_lossless(arr)
+
     # only have atol for now
     # if not (rtol is None):
     #     raise NotImplementedError("rtol not implemented yet!")
@@ -123,30 +135,35 @@ def compress_f(arr, atol=None, rtol=None):
 def compress_f_lossless(arr):
     '''
     just compress the fp array using zstd
-    this seems to produce a better CR than zfp
-        for temperature & gps data at least
-        * when retaining a 2d array at least...
-            could work out with 1d arrays too?
+
+    It could be that an LC pipeline gives a better CR than just zstd,
+        but we would have to check both
+        which would require some creativity in how to check
+        or a very long file compression time
+        so i will not do it for now
     '''
     # no need
     bitwise_split_required = False
     txs = []
     comp_buffer = compress(arr, ZSTD_LEVEL)
-    # TODO capture size of buffer upfront
-    #   instead of so many conversions :)
-    zs_cr = len(bytes(arr)) / len(comp_buffer)
-    # lets sneak in the LC pipeline...
-    lc_pipeline, lc_cr = get_compression_pipeline(arr)
-    print('zs_cr', zs_cr, 'lc_cr', lc_cr)
-    if lc_cr > zs_cr:
-        # use LC!
-        print('use lc!')
-        # TODO assign enum for pipeline
-        #   which can just be run_decompression_pipeline with the name
-        comp_buffer = lc_pipeline_compress(arr, lc_pipeline.name)
-        # need to caputre the dtype & dshape in this case
-        dtype = arr.dtype.name
-        dshape = arr.shape
-        txs = [(TX_ENUMs[lc_pipeline_compress], lc_pipeline.name, dtype, dshape)]
+
+    # dont bother checking LC in this context, 
+    #   at least not until creatively sampling the data to see
+    # # TODO capture size of buffer upfront
+    # #   instead of so many conversions :)
+    # zs_cr = len(bytes(arr)) / len(comp_buffer)
+    # # lets sneak in the LC pipeline... 
+    # lc_pipeline, lc_cr = get_compression_pipeline(arr)
+    # # print('zs_cr', zs_cr, 'lc_cr', lc_cr)
+    # if lc_cr > zs_cr:
+    #     # use LC!
+    #     # print('use lc!')
+    #     # TODO assign enum for pipeline
+    #     #   which can just be run_decompression_pipeline with the name
+    #     comp_buffer = lc_pipeline_compress(arr, lc_pipeline.name)
+    #     # need to caputre the dtype & dshape in this case
+    #     dtype = arr.dtype.name
+    #     dshape = arr.shape
+    #     txs = [(TX_ENUMs[lc_pipeline_compress], lc_pipeline.name, dtype, dshape)]
     return (comp_buffer, txs, bitwise_split_required)
 

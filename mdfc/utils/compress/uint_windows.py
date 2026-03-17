@@ -43,8 +43,8 @@ def compress_u32(arr):
     '''
     
     bitwise_split_required = False
-    print(f'initial array length {len(arr)}')
-    print(arr)
+    # print(f'initial array length {len(arr)}')
+    # print(arr)
 
     # from .. import generate_uint32_buffer
     # comp_buffer = generate_uint32_buffer(arr.shape[0]+100)
@@ -57,11 +57,11 @@ def compress_u32(arr):
         arr, size_arr, 
         byref(comp_buffer), byref(size_comp)
     )
-    print(f'size_comp {size_comp}')
-    print(f'{size_comp.value} compressed data u32 length')
+    # print(f'size_comp {size_comp}')
+    # print(f'{size_comp.value} compressed data u32 length')
     # slc = comp_buffer[:size_comp.value]
     # print(slc)
     bytes_out = string_at(comp_buffer, int(size_comp.value*sizeof(c_uint32)))
-    print(f'compressed view', np.frombuffer(buffer=bytes_out, dtype=np.uint32))
-    print(f'{len(bytes_out)} total bytes compressed')
+    # print(f'compressed view', np.frombuffer(buffer=bytes_out, dtype=np.uint32))
+    # print(f'{len(bytes_out)} total bytes compressed')
     return bytes_out, bitwise_split_required  # need copy? not sure

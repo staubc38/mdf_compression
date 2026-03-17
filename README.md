@@ -1,20 +1,38 @@
 # MDF Compression
-Studies &amp; trials on compressing data from ETAS (/ASAM) MDF files.\
-Current project status:
-* PFOR & LC-Framework are available for pip install, both requiring gcc, and [PFOR having some hardware requirements](https://github.com/fast-pack/FastPFOR?tab=readme-ov-file#hardware-requirements).\
-Therefore on a thinkpad & latest ubuntu, it works well -> see ./examples, just simple tests.
-  - Comprable compression ratio is observed compared against stock MDF compression ("transpose + ZLib"). \
-  - Allowing for precision loss in timestamps (eg 1us) will add noticably more CR.
-  - Floating point data can still dominate the total file size (of course). If no loss is permissible, not much gain may be observed. However...\
-  Allowing some precision loss, eg 0.1%, will give much more CR!
-  - Always faster decompression time compared to stock MDF compression, sometimes even faster than reading the uncompressed MDF!
-  - [link](#examples-results)
-* PFOR is not supported with mvsc (nor LC-framework). Therefore pip install will fail.\
-A precompiled DLL may be OK to use for this simple project -> current wrapper needs better memory management.\
-Current wrapper (under /dll) will cause stack overflow.
-* Only 1-dimensional data of int/fp is supported from the MDF, eg lidar/pictures & comments are not comprehended.
+Studies &amp; trials on compressing data from ETAS (/ASAM) MDF files.
 
-## Description
+## About
+* It's just a simple wrapper around other libraries:
+  - [asammdf python library](https://github.com/danielhrisca/asammdf): ingestion of MDF data & metadata into python.
+  - [FastPFOR](https://github.com/fast-pack/FastPFOR): super fast (de)compression of integers! 
+  - [LC-Framework](https://github.com/burtscher/LC-framework/tree/main): very cool framework to search & select custom compression pipelines
+  - [ZStandard](https://github.com/facebook/zstd): General purpose compressor.
+* Lossy compression of timestamps and data are implemented. For example, just reducing timestamps resolution to 1ms can drastically reduce the compressed size! [Read more...](#more-ramblings)
+* Testing is done on one "real-world automotive dataset", consisting of just 1d integer & float data. The results always match or exceed the ASAM MDF 4.3 standard!
+
+
+* Only 1-dimensional data of int/fp is comprehended from the MDF, eg lidar/pictures are not comprehended.
+* Metadata from the MDF file is not captured (eg, comments, "invalidation bits", other MDF channel/group metadata besides the signal names)
+* Python binding of FastPFOR only compiles with gcc -> may fail pip install on windows. Therefore a precompiled dll around FastPFOR is created & used. Perhaps a build pipeline can be generated sometime...
+  - Further, some [hardware requirements](https://github.com/fast-pack/FastPFOR?tab=readme-ov-file#hardware-requirements)
+* LC-framework does not have any python bindings -> build would be required. Build pipeline is not created yet. Only simple tests on the developers linux box are done :-)
+
+## Examples Results
+Please see [./examples](https://github.com/staubc38/mdf_compression/tree/main/examples#readme) for a writeup & sample python noteboks, showcasing the intended use & results.\
+Latest results from "real-world Automotive Dataset":
+* |Trial | Size (MB) | Ratio (U/C) |  | Read Time (ms) | Note |
+  |:-----|----------:|------------:|:-|---------------:|:-----|
+  |Uncompressed MDF| 89 |1.0| | **258**| |
+  |DEFLATE'd MDF (ASAM 4.3?)|20 |4.5| | 890| Using "transpose+deflate", zstd-9|
+  |MDFC, Lossless (this repo)|**13.5** |**13.5**|**6.6**| | **280**| |
+  |MDFC, 1ms resolution (this repo) |**8.06** |**11**| | **268**|No samples are faster than 1ms. It effectively only removes "jitter" |
+
+This project does not consider any "block size". Current MDF standard is to compress data in blocks with maximum size of 4 MB (uncompressed size). Perhaps in the future, cache-sized chunks (eg 128 kb) can be used. As the author understands, that approach can also allow for much faster total decompression time!
+
+
+
+
+## More ramblings
 A MDF ([current version "MF4"](https://www.asam.net/standards/detail/mdf/wiki/)) file represents a collection of "time-series data", which are recordings from various sources that always have an associated "timestamp" with each record.\
 Key charactaristics include:
 * Data is organized according to groups of "channels", which contain blocks of record-oriented data accumulated during recording. These channels are defined with a fixed data type on start of recording. Each of these records contains an increasing "timestamp", in some seconds-domain unit, representing "time \[\*s\] since recording start".
@@ -28,7 +46,6 @@ Further, there may be high amount of overlap in the value of timestamps of vario
   Therefore some loss of precision in the value is usually tolerable by the application customer.
 
 
-## Technologies used
 These characteristics are good for a specialized compressed file structure, targeting column-oriented serialization per "channel". See more about the file structure (serialization approach) under ./mdfc 
 
 Specialized compression algorithms will provide improved compressibility & decompression speed, compared to "generic lossless compression":
@@ -43,17 +60,14 @@ Specialized compression algorithms will provide improved compressibility & decom
   * A library to create independent & optimal compression algos based on the data, (seemingly) by iteratively chaining various transformations & compressions, and presenting the best result(s).
   * Seems like a good choice to use for channel-oriented fp compression... lossy or lossless!
 
-## Examples results
-Please see ./examples for some sample python noteboks, showcasing the intended use & results.
 
-
-### Future works:
+### Future works
 Want to explore...
 * FPC (lossless 1d float compression):
   * https://userweb.cs.txstate.edu/~burtscher/research/FPC
-  * https://github.com/spenczar/fpc  (for Go)
 * BLOSC (block-wise on-the-fly decompression -> could provide decompression parallelization?):
   * https://www.blosc.org/
+  * i think if this can take care of cpu "parallelization" (?) if the compressed blocks are written
 * ZFP: https://github.com/LLNL/zfp
   * (optionally) Lossy floating-point compression library with [python bindings](https://zfp.readthedocs.io/en/release0.5.5/python.html). [Docu](https://zfp.readthedocs.io/en/release0.5.5/overview.html)
   * After some initial trials, compressing 1d fp samples with this library doesnt give quite as good CR as just using an OTS compressor. Perhaps this would perform much better with higher dimensionality data, eg LIDAR?

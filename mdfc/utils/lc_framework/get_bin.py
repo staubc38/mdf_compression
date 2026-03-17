@@ -19,17 +19,31 @@ from . import pcb_compressors_path, pcb_decompressors_path
 #   to compile chains on-the-fly
 #   it may be too much to require that with this project
 #   so, just need some more thought on that...
-print('file is', __file__)
-print('resolved is', Path(__file__).resolve())
-LC_FRAMEWORK_PATH = Path(
-    os.path.join(
-        # TODO do not assume LC installation or location
-        Path(__file__).resolve().parent.parent.parent.parent.parent,
-        'LC-framework',
-        'lc'
-    )
-).resolve()
-print(f'lc path is {LC_FRAMEWORK_PATH}')
+#   i think it would be a good idea to have optionally.
+#   but it would need some build pipeline & proper referencing
+# print('file is', __file__)
+# print('resolved is', Path(__file__).resolve())
+
+CAN_USE_LC = True
+_level = Path(__file__).resolve().parent.parent.parent.parent
+LC_FRAMEWORK_PATH = (_level / 'LC-framework' / 'lc').resolve()
+# need to check up front if LC is found,
+# assuming target location is one or two levels above this module
+if not LC_FRAMEWORK_PATH.exists():
+    LC_FRAMEWORK_PATH = (_level.parent / 'LC-framework' / 'lc').resolve()
+    if not LC_FRAMEWORK_PATH.exists():
+        import warnings
+        warnings.warn(
+            'Cound not locate /LC-framework/lc at one or two levels above mdfc module! '
+            'Therefore LC framework option has been disabled. '
+            'Note that a file previously compressed with LC-framework cannot now be decompressed...'
+        )
+        CAN_USE_LC = False
+# we should probably test if lc works...
+# TODO :)
+# for now it will just easily fail
+
+
 # straight from their tutorial:
 # https://github.com/burtscher/LC-framework/?tab=readme-ov-file#standalone-compressor-and-decompressor-generation
 compiler = 'g++'

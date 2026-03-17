@@ -23,6 +23,8 @@ from .. import (
     COMP_METADATA_MAX_BYTES,
     COMP_METADATA_GROUP_FIELDS,
     dump_json_md_utf8,
+    # flag if LC can be used on this platform
+    # CAN_USE_LC,
 )
 from ..transform import (
     compress_time, compress_samples_time, 
@@ -319,19 +321,6 @@ class MDFCompressor(object):
         Returns True on success,
         raises exceptions otherwise
         '''
-        # temporary check, 
-        #   we only support the signal names presently
-        #   so lets check for that before going
-        # TODO not required in group context!!
-        # for key, chans in mdf_file.channels_db.items():
-        #     if (key == 'time'): continue
-        #     if (len(chans) > 1):
-        #         raise NotImplementedError(
-        #             f"Channel named {key} is found, by name, in multiple groups: "
-        #             f"({', '.join(str(k) for k in chans)}). "
-        #             "Presently only unique names may be compressed in MDFC file 😟 "
-        #             "Sorry!"
-        #         )
         # set timeaxis if not already
         if (not self._has_set_time) and (_unify_timestamps):
             if _unify_timestamps:
@@ -494,18 +483,6 @@ class MDFCompressor(object):
                 "before compressing any signal! "
                 "Please call unify_compress_time function first :)"
             )
-        
-        # cannot tolerate overlapping keys... 
-        #   which presently are the signal names
-        #   TODO this will need to be comprehended better
-        #   to allow MDF signals with same name, but different groups
-        # this is not true in group context now!
-        # signal_name = signal.name
-        # if (signal_name in self.comp_metadata.keys()):
-        #     raise MDFCompressorException(
-        #         "Presently, only unique names of signals are allowed to be included "
-        #         f"in a MDFC file. Signal named {signal.name} was already compressed!"
-        #     )
 
         # which metadata group are we on?
         this_metadata = self.comp_metadata[group_index]

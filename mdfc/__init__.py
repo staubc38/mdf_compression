@@ -140,3 +140,8 @@ def dump_json_md_utf8(md, file_obj):
 # context manager classes
 from .compressor import MDFCompressor
 from .decompressor import MDFDecompressor
+
+# flag if LC-framework is able to be used, 
+#   if not, we cannot decompress a file that was compressed using it
+#   and we cannot compress data using it (of course)
+# from .utils.lc_framework.get_bin import CAN_USE_LC
