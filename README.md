@@ -7,27 +7,22 @@ Studies &amp; trials on compressing data from ETAS (/ASAM) MDF files.
   - [FastPFOR](https://github.com/fast-pack/FastPFOR): super fast (de)compression of integers! 
   - [LC-Framework](https://github.com/burtscher/LC-framework/tree/main): very cool framework to search & select custom compression pipelines
   - [ZStandard](https://github.com/facebook/zstd): General purpose compressor.
-* Lossy compression of timestamps and data are implemented. For example, just reducing timestamps resolution to 1ms can drastically reduce the compressed size! [Read more...](#more-ramblings)
-* Testing is done on one "real-world automotive dataset", consisting of just 1d integer & float data. The results always match or exceed the ASAM MDF 4.3 standard!
-
-
-* Only 1-dimensional data of int/fp is comprehended from the MDF, eg lidar/pictures are not comprehended.
-* Metadata from the MDF file is not captured (eg, comments, "invalidation bits", other MDF channel/group metadata besides the signal names)
-* Python binding of FastPFOR only compiles with gcc -> may fail pip install on windows. Therefore a precompiled dll around FastPFOR is created & used. Perhaps a build pipeline can be generated sometime...
-  - Further, some [hardware requirements](https://github.com/fast-pack/FastPFOR?tab=readme-ov-file#hardware-requirements)
-* LC-framework does not have any python bindings -> build would be required. Build pipeline is not created yet. Only simple tests on the developers linux box are done :-)
+* Lossy compression of timestamps and data are implemented.\
+For example, just reducing timestamps resolution to 1ms can drastically reduce the compressed size! [Read more...](#more-ramblings)
+* Testing is done on one "real-world automotive dataset", consisting of just 1d integer & float data.\
+The results always match or exceed the ASAM MDF 4.3 standard!
+* Only 1-dimensional data of int/fp is comprehended from the MDF, eg lidar/pictures are not comprehended.\
+Metadata from the MDF file is not captured (eg, comments, "invalidation bits", other MDF channel/group metadata besides the signal names)
 
 ## Examples Results
 Please see [./examples](https://github.com/staubc38/mdf_compression/tree/main/examples#readme) for a writeup & sample python noteboks, showcasing the intended use & results.\
 Latest results from "real-world Automotive Dataset":
-* |Trial | Size (MB) | Ratio (U/C) |  | Read Time (ms) | Note |
+  |Trial | Size (MB) | Ratio (U/C) |  | Read Time (ms) | Note |
   |:-----|----------:|------------:|:-|---------------:|:-----|
   |Uncompressed MDF| 89 |1.0| | **258**| |
-  |DEFLATE'd MDF (ASAM 4.3?)|20 |4.5| | 890| Using "transpose+deflate", zstd-9|
-  |MDFC, Lossless (this repo)|**13.5** |**13.5**|**6.6**| | **280**| |
-  |MDFC, 1ms resolution (this repo) |**8.06** |**11**| | **268**|No samples are faster than 1ms. It effectively only removes "jitter" |
-
-This project does not consider any "block size". Current MDF standard is to compress data in blocks with maximum size of 4 MB (uncompressed size). Perhaps in the future, cache-sized chunks (eg 128 kb) can be used. As the author understands, that approach can also allow for much faster total decompression time!
+  |DEFLATE'd MDF<br/>(ASAM 4.3?)|20 |4.5| | 890| Using "transpose+deflate", zstd-9|
+  |MDFC, Lossless<br/>(this repo)|**13.5** |**6.6**| |**280**| | |
+  |MDFC, 1ms resolution<br/>(this repo) |**8.06** |**11**| | **268**|No samples are faster than 1ms.<br/>It effectively only removes "jitter" |
 
 
 
@@ -59,7 +54,10 @@ Specialized compression algorithms will provide improved compressibility & decom
   * https://github.com/burtscher/LC-framework/
   * A library to create independent & optimal compression algos based on the data, (seemingly) by iteratively chaining various transformations & compressions, and presenting the best result(s).
   * Seems like a good choice to use for channel-oriented fp compression... lossy or lossless!
-
+* Python binding of FastPFOR only compiles with gcc -> may fail pip install on windows. Therefore a precompiled dll around FastPFOR is created & used. Perhaps a build pipeline can be generated sometime...
+  - Further, some [hardware requirements](https://github.com/fast-pack/FastPFOR?tab=readme-ov-file#hardware-requirements)
+* LC-framework does not have any python bindings -> build would be required. Build pipeline is not created yet. Only simple tests on the developers linux box are done :-)
+* This project does not consider any "block size". Current MDF standard is to compress data in blocks with maximum size of 4 MB (uncompressed size). Perhaps in the future, cache-sized chunks (eg 128 kb) can be used. As the author understands, that approach can also allow for much faster total decompression time!
 
 ### Future works
 Want to explore...
